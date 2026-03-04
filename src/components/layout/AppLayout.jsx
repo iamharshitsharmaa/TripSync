@@ -2,90 +2,119 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import toast from 'react-hot-toast'
-import { LayoutDashboard, Map, LogOut, Menu, X, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, LogOut, Menu, X, ChevronRight } from 'lucide-react'
 
 export default function AppLayout({ children }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [open, setOpen] = useState(false)
 
   const handleLogout = async () => {
     await logout()
     toast.success('Logged out')
-    navigate('/login')
+    navigate('/')
   }
 
+  const isActive = (path) => location.pathname === path
+
   return (
-    <div className="min-h-screen bg-gray-950 flex">
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#07070f', fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
+      `}</style>
 
       {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 bg-black/60 z-20 lg:hidden"
-          onClick={() => setMobileOpen(false)} />
-      )}
+      {open && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40 }} onClick={() => setOpen(false)} />}
 
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-64 bg-gray-900 border-r border-gray-800
-        flex flex-col z-30 transition-transform duration-200
-        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
-
+      <aside style={{
+        position: 'fixed', top: 0, left: 0, height: '100vh', width: 220,
+        background: '#0a0a15', borderRight: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex', flexDirection: 'column', zIndex: 50,
+        transform: open ? 'translateX(0)' : undefined,
+        transition: 'transform 0.2s ease',
+      }}
+        className="sidebar-desktop"
+      >
         {/* Brand */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-sm">✈️</div>
-            <span className="font-bold text-white text-lg">TripSync</span>
+        <div style={{ padding: '20px 20px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
+            <div className="flex items-center gap-3 select-none">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <span className="text-white text-sm">✈</span>
           </div>
-          <button className="lg:hidden text-gray-400" onClick={() => setMobileOpen(false)}>
-            <X size={18} />
+
+          <span className="text-white text-xl font-bold tracking-tight">
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Trip
+            </span>
+            Sync
+          </span>
+        </div>
+          </Link>
+          <button onClick={() => setOpen(false)} style={{ display: 'none', background: 'none', border: 'none', color: '#606080', cursor: 'pointer' }} className="close-btn">
+            <X size={16} />
           </button>
         </div>
 
-        {/* Nav Links */}
-        <nav className="flex-1 p-3 space-y-1">
-          <Link to="/dashboard"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition
-              ${location.pathname === '/dashboard'
-                ? 'bg-blue-600/15 text-blue-400 border border-blue-600/20'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
-            <LayoutDashboard size={16} />
-            My Trips
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '12px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: '#404060', letterSpacing: 2, textTransform: 'uppercase', padding: '4px 10px', marginBottom: 4 }}>Navigation</p>
+          <Link to="/dashboard" style={{
+            display: 'flex', alignItems: 'center', gap: 9,
+            padding: '9px 12px', borderRadius: 9, textDecoration: 'none',
+            background: isActive('/dashboard') ? 'rgba(79,142,247,0.1)' : 'none',
+            borderLeft: `2px solid ${isActive('/dashboard') ? '#4f8ef7' : 'transparent'}`,
+            color: isActive('/dashboard') ? '#90b8f8' : '#606080',
+            fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { if (!isActive('/dashboard')) { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#c0c0d8' } }}
+            onMouseLeave={e => { if (!isActive('/dashboard')) { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#606080' } }}
+          >
+            <LayoutDashboard size={15} /> My Trips
           </Link>
         </nav>
 
-        {/* User footer */}
-        <div className="p-3 border-t border-gray-800">
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-gray-800/50">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600
-              flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+        {/* User */}
+        <div style={{ padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
               {user?.name?.[0]?.toUpperCase() || 'U'}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#e0e0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</p>
+              <p style={{ fontSize: 10, color: '#404060', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
             </div>
-            <button onClick={handleLogout}
-              className="text-gray-500 hover:text-red-400 transition flex-shrink-0" title="Logout">
-              <LogOut size={15} />
+            <button onClick={handleLogout} title="Logout" style={{ background: 'none', border: 'none', color: '#404060', cursor: 'pointer', padding: 2, flexShrink: 0, transition: 'color 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+              onMouseLeave={e => e.currentTarget.style.color = '#404060'}>
+              <LogOut size={14} />
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Page content */}
-      <div className="flex-1 lg:ml-64">
-        {/* Top bar (mobile) */}
-        <header className="lg:hidden sticky top-0 z-10 flex items-center justify-between
-          px-4 py-3 bg-gray-900 border-b border-gray-800">
-          <button onClick={() => setMobileOpen(true)} className="text-gray-400">
-            <Menu size={20} />
-          </button>
-          <span className="font-bold text-white">TripSync</span>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600
-            flex items-center justify-center text-xs font-bold text-white">
+      {/* Main content */}
+      <div style={{ flex: 1, marginLeft: 220 }}>
+        {/* Mobile topbar */}
+        <header style={{ display: 'none', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: '#0a0a15', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, zIndex: 30 }} className="mobile-header">
+          <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', color: '#c0c0d8', cursor: 'pointer' }}><Menu size={20} /></button>
+          <span style={{ fontSize: 16, fontWeight: 900, fontFamily: "'Playfair Display', serif", color: '#f0f0f5' }}>TripSync</span>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff' }}>
             {user?.name?.[0]?.toUpperCase() || 'U'}
           </div>
         </header>
+
+        <style>{`
+          @media (max-width: 768px) {
+            .sidebar-desktop { transform: translateX(-100%); }
+            .sidebar-desktop.open { transform: translateX(0); }
+            .close-btn { display: flex !important; }
+            .mobile-header { display: flex !important; }
+            div[style*="margin-left: 220px"] { margin-left: 0 !important; }
+          }
+        `}</style>
 
         {children}
       </div>
