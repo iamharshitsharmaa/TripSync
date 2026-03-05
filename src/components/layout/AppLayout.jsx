@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import useAuthStore from '../../store/authStore'
 import api from '../../lib/axios'
 import toast from 'react-hot-toast'
-import { LayoutDashboard, LogOut, Menu, X, ChevronRight, MapPin, Calendar, Circle } from 'lucide-react'
+import { LayoutDashboard, LogOut, Menu, X, ChevronRight } from 'lucide-react'
 
 const fetchTrips = () => api.get('/trips').then(r => r.data.data)
 
@@ -33,66 +33,90 @@ export default function AppLayout({ children }) {
 
   const isDash = location.pathname === '/dashboard'
 
-  const sidebarStyle = {
-    position: 'fixed', top: 0, left: 0, height: '100vh', width: 228,
-    background: '#08080f',
-    borderRight: '1px solid rgba(255,255,255,0.07)',
-    display: 'flex', flexDirection: 'column', zIndex: 50,
-    fontFamily: "'DM Sans', sans-serif",
-  }
-
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#07070f', fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
-        .sidebar-link:hover { background: rgba(255,255,255,0.05) !important; color: #c0c0d8 !important; }
-        .trip-sidebar-item:hover { background: rgba(255,255,255,0.05) !important; }
-        .logout-btn:hover { color: #f87171 !important; }
-        @media (max-width: 768px) {
-          .sidebar { transform: translateX(-100%) !important; }
-          .sidebar.open { transform: translateX(0) !important; }
-          .main-content { margin-left: 0 !important; }
-          .mobile-bar { display: flex !important; }
+
+        .sidebar-link:hover  { background: rgba(255,255,255,0.05) !important; color: #c0c0d8 !important; }
+        .trip-item:hover     { background: rgba(255,255,255,0.05) !important; }
+        .logout-btn:hover    { color: #f87171 !important; }
+
+        /* ── Sidebar: always visible on desktop ── */
+        .ts-sidebar {
+          position: fixed; top: 0; left: 0;
+          height: 100vh; width: 228px;
+          background: #08080f;
+          border-right: 1px solid rgba(255,255,255,0.07);
+          display: flex; flex-direction: column;
+          z-index: 50;
+          transition: transform .25s cubic-bezier(.4,0,.2,1);
         }
+        .ts-main    { margin-left: 228px; flex: 1; min-width: 0; }
+        .ts-topbar  { display: none; }
+        .ts-close   { display: none !important; }
+        .ts-overlay { display: none; }
+
+        /* ── Mobile ── */
+        @media (max-width: 768px) {
+          .ts-sidebar  { transform: translateX(-100%); }
+          .ts-sidebar.open { transform: translateX(0); box-shadow: 4px 0 32px rgba(0,0,0,0.7); }
+          .ts-main    { margin-left: 0; }
+          .ts-topbar  { display: flex !important; }
+          .ts-close   { display: flex !important; }
+          .ts-overlay { display: block; }
+        }
+
+        /* Sidebar scrollbar */
+        .ts-trips::-webkit-scrollbar { width: 3px }
+        .ts-trips::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px }
       `}</style>
 
       {/* Mobile overlay */}
-      {open && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40 }} onClick={() => setOpen(false)} />}
+      {open && (
+        <div
+          className="ts-overlay"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 40, backdropFilter: 'blur(2px)' }}
+          onClick={() => setOpen(false)}
+        />
+      )}
 
-      {/* ── Sidebar */}
-      <aside className={`sidebar ${open ? 'open' : ''}`} style={sidebarStyle}>
+      {/* ── Sidebar ─────────────────────────────────── */}
+      <aside className={`ts-sidebar${open ? ' open' : ''}`}>
 
         {/* Brand */}
-        <div style={{ padding: '18px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '18px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
             <div style={{ width: 30, height: 30, background: 'linear-gradient(135deg,#4f8ef7,#7c3aed)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>✈️</div>
             <span style={{ fontSize: 17, fontWeight: 900, color: '#f0f0f5', fontFamily: "'Playfair Display', serif" }}>TripSync</span>
           </Link>
-          <button className="close-btn" onClick={() => setOpen(false)} style={{ display: 'none', background: 'none', border: 'none', color: '#606080', cursor: 'pointer', padding: 4 }}>
+          {/* Close button — only visible on mobile via CSS */}
+          <button
+            className="ts-close"
+            onClick={() => setOpen(false)}
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#c0c0d8', cursor: 'pointer', padding: '5px 6px', alignItems: 'center', justifyContent: 'center' }}
+          >
             <X size={16} />
           </button>
         </div>
 
-        {/* Main nav */}
-        <nav style={{ padding: '10px 10px 0' }}>
+        {/* Nav */}
+        <nav style={{ padding: '10px 10px 0', flexShrink: 0 }}>
           <p style={{ fontSize: 9, fontWeight: 700, color: '#353555', letterSpacing: 2, textTransform: 'uppercase', padding: '6px 10px', marginBottom: 4 }}>Navigation</p>
-          <Link to="/dashboard" className="sidebar-link" style={{
-            display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px',
-            borderRadius: 9, textDecoration: 'none',
-            background: isDash ? 'rgba(79,142,247,0.1)' : 'none',
-            borderLeft: `2px solid ${isDash ? '#4f8ef7' : 'transparent'}`,
-            color: isDash ? '#90b8f8' : '#606080',
-            fontSize: 13, fontWeight: 600, transition: 'all .15s',
-          }}>
+          <Link
+            to="/dashboard"
+            className="sidebar-link"
+            onClick={() => setOpen(false)}
+            style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderRadius: 9, textDecoration: 'none', background: isDash ? 'rgba(79,142,247,0.1)' : 'none', borderLeft: `2px solid ${isDash ? '#4f8ef7' : 'transparent'}`, color: isDash ? '#90b8f8' : '#606080', fontSize: 13, fontWeight: 600, transition: 'all .15s' }}
+          >
             <LayoutDashboard size={15} /> My Trips
           </Link>
         </nav>
 
-        {/* ── Trip list in sidebar */}
+        {/* Trip list */}
         {trips.length > 0 && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 10px 8px' }}>
+          <div className="ts-trips" style={{ flex: 1, overflowY: 'auto', padding: '16px 10px 8px' }}>
             <p style={{ fontSize: 9, fontWeight: 700, color: '#353555', letterSpacing: 2, textTransform: 'uppercase', padding: '0 10px', marginBottom: 8 }}>Your Trips</p>
-
             {trips.slice(0, 8).map(trip => {
               const status = tripStatus(trip)
               const dot    = STATUS_DOT[status]
@@ -101,25 +125,20 @@ export default function AppLayout({ children }) {
               const end    = new Date(trip.endDate).toLocaleDateString('en',   { month: 'short', day: 'numeric' })
 
               return (
-                <Link key={trip._id} to={`/trips/${trip._id}`} className="trip-sidebar-item" style={{
-                  display: 'block', padding: '9px 12px', borderRadius: 10,
-                  textDecoration: 'none', marginBottom: 2,
-                  background: active ? 'rgba(79,142,247,0.08)' : 'none',
-                  border: `1px solid ${active ? 'rgba(79,142,247,0.2)' : 'transparent'}`,
-                  transition: 'all .15s',
-                }}>
+                <Link
+                  key={trip._id}
+                  to={`/trips/${trip._id}`}
+                  className="trip-item"
+                  onClick={() => setOpen(false)}
+                  style={{ display: 'block', padding: '9px 12px', borderRadius: 10, textDecoration: 'none', marginBottom: 2, background: active ? 'rgba(79,142,247,0.08)' : 'none', border: `1px solid ${active ? 'rgba(79,142,247,0.2)' : 'transparent'}`, transition: 'all .15s' }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {/* Status dot */}
                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0, boxShadow: status === 'ongoing' ? `0 0 6px ${dot}` : 'none' }} />
-                    {/* Cover thumbnail or gradient circle */}
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 8, flexShrink: 0, overflow: 'hidden',
-                      background: trip.coverImage ? undefined : 'linear-gradient(135deg,#1e3a5f,#2d1b4e)',
-                    }}>
-                      {trip.coverImage && <img src={trip.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                      {!trip.coverImage && (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✈️</div>
-                      )}
+                    <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, overflow: 'hidden', background: trip.coverImage ? undefined : 'linear-gradient(135deg,#1e3a5f,#2d1b4e)' }}>
+                      {trip.coverImage
+                        ? <img src={trip.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✈️</div>
+                      }
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 12, fontWeight: 700, color: active ? '#90b8f8' : '#c0c0d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{trip.title}</p>
@@ -128,7 +147,6 @@ export default function AppLayout({ children }) {
                     {active && <ChevronRight size={12} color="#4f8ef7" />}
                   </div>
 
-                  {/* Members count */}
                   {active && (
                     <div style={{ marginTop: 8, paddingLeft: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ display: 'flex' }}>
@@ -147,7 +165,7 @@ export default function AppLayout({ children }) {
             })}
 
             {trips.length > 8 && (
-              <Link to="/dashboard" style={{ display: 'block', padding: '7px 12px', fontSize: 11, color: '#404060', textDecoration: 'none', textAlign: 'center' }}>
+              <Link to="/dashboard" onClick={() => setOpen(false)} style={{ display: 'block', padding: '7px 12px', fontSize: 11, color: '#404060', textDecoration: 'none', textAlign: 'center' }}>
                 +{trips.length - 8} more trips
               </Link>
             )}
@@ -157,10 +175,12 @@ export default function AppLayout({ children }) {
         {trips.length === 0 && <div style={{ flex: 1 }} />}
 
         {/* User profile */}
-        <div style={{ padding: '10px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <div style={{ padding: '10px', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
-              {user?.name?.[0]?.toUpperCase() || 'U'}
+              {user?.avatar
+                ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                : user?.name?.[0]?.toUpperCase() || 'U'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 12, fontWeight: 700, color: '#e0e0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</p>
@@ -173,16 +193,32 @@ export default function AppLayout({ children }) {
         </div>
       </aside>
 
-      {/* ── Main content */}
-      <div className="main-content" style={{ flex: 1, marginLeft: 228, minWidth: 0 }}>
+      {/* ── Main content ─────────────────────────────── */}
+      <div className="ts-main">
+
         {/* Mobile topbar */}
-        <header className="mobile-bar" style={{ display: 'none', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: '#08080f', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, zIndex: 30 }}>
-          <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', color: '#c0c0d8', cursor: 'pointer' }}><Menu size={20} /></button>
+        <header
+          className="ts-topbar"
+          style={{ alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 52, background: '#08080f', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, zIndex: 30, flexShrink: 0 }}
+        >
+          <button
+            onClick={() => setOpen(true)}
+            style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: '#c0c0d8', cursor: 'pointer' }}
+          >
+            <Menu size={18} />
+          </button>
+
           <span style={{ fontSize: 16, fontWeight: 900, fontFamily: "'Playfair Display', serif", color: '#f0f0f5' }}>TripSync</span>
-          <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff' }}>
-            {user?.name?.[0]?.toUpperCase() || 'U'}
+
+          <div
+            style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#4f8ef7,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff', overflow: 'hidden' }}
+          >
+            {user?.avatar
+              ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : user?.name?.[0]?.toUpperCase() || 'U'}
           </div>
         </header>
+
         {children}
       </div>
     </div>
