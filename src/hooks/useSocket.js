@@ -5,8 +5,8 @@ import useAuthStore from '../store/authStore'
 
 const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000')
    .replace(/\/api$/, '')
-//const SOCKET_URL = ('http://localhost:5000')
-  //.replace(/\/api$/, '')
+// const SOCKET_URL = ('http://localhost:5000')
+  // .replace(/\/api$/, '')
 
 let socket = null
 

@@ -1,15 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useInView } from 'react-intersection-observer'
+import { useState, useEffect, useRef } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { Send, MessageCircle, Trash2, ChevronDown, Loader2 } from 'lucide-react'
 import api from '../lib/axios'
-import { useSocket } from '../hooks/useSocket'   // your existing socket hook
-import  useAuthStore  from '../store/authStore' // adjust to your auth store
+import { useSocket } from '../hooks/useSocket'
 
-/* ── tiny helpers ── */
+/* ── helpers ── */
 function formatTime(iso) {
-  const d = new Date(iso)
-  const now = new Date()
+  const d = new Date(iso), now = new Date()
   const diffDays = Math.floor((now - d) / 86400000)
   if (diffDays === 0) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   if (diffDays === 1) return 'Yesterday ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -27,25 +24,22 @@ function Avatar({ user, size = 32 }) {
   )
 }
 
-/* ════════════════════════════════════════
-   TRIP CHAT
-════════════════════════════════════════ */
 export default function TripChat({ tripId, currentUser }) {
-  const qc              = useQueryClient()
-  const socket          = useSocket()
-  const bottomRef       = useRef(null)
-  const inputRef        = useRef(null)
-  const typingTimer     = useRef(null)
+  // Pass tripId so the socket is connected and in the right room
+  const socket      = useSocket(tripId)
+  const bottomRef   = useRef(null)
+  const inputRef    = useRef(null)
+  const typingTimer = useRef(null)
 
-  const [input,      setInput]      = useState('')
-  const [messages,   setMessages]   = useState([])
-  const [typers,     setTypers]     = useState({})   // { socketId: userName }
-  const [atBottom,   setAtBottom]   = useState(true)
-  const [page,       setPage]       = useState(1)
-  const [hasMore,    setHasMore]    = useState(true)
+  const [input,       setInput]       = useState('')
+  const [messages,    setMessages]    = useState([])
+  const [typers,      setTypers]      = useState({})
+  const [atBottom,    setAtBottom]    = useState(true)
+  const [page,        setPage]        = useState(1)
+  const [hasMore,     setHasMore]     = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
 
-  // Load first page
+  // ── Initial load ──────────────────────────────────────────
   const { isLoading } = useQuery({
     queryKey: ['messages', tripId],
     queryFn: () => api.get(`/trips/${tripId}/messages?page=1&limit=50`).then(r => r.data.data),
@@ -56,27 +50,29 @@ export default function TripChat({ tripId, currentUser }) {
     },
   })
 
-  // Load more (older) messages
+  // ── Load older messages ───────────────────────────────────
   const loadMore = async () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
     const nextPage = page + 1
-    const { data } = await api.get(`/trips/${tripId}/messages?page=${nextPage}&limit=50`)
-    setMessages(prev => [...data.data.messages, ...prev])
-    setHasMore(nextPage < data.data.pagination.pages)
-    setPage(nextPage)
-    setLoadingMore(false)
+    try {
+      const { data } = await api.get(`/trips/${tripId}/messages?page=${nextPage}&limit=50`)
+      setMessages(prev => [...data.data.messages, ...prev])
+      setHasMore(nextPage < data.data.pagination.pages)
+      setPage(nextPage)
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
-  // Send message
+  // ── Send message ──────────────────────────────────────────
   const { mutate: sendMsg, isPending: sending } = useMutation({
     mutationFn: content => api.post(`/trips/${tripId}/messages`, { content }).then(r => r.data.data),
     onSuccess: (msg) => {
-      // Optimistic add handled via socket; fallback if socket misses
+      // Socket will broadcast to others; add locally only if not already present
       setMessages(prev => prev.find(m => m._id === msg._id) ? prev : [...prev, msg])
       setTimeout(() => scrollToBottom(), 50)
     },
-    onError: () => {},
   })
 
   const { mutate: deleteMsg } = useMutation({
@@ -84,45 +80,53 @@ export default function TripChat({ tripId, currentUser }) {
     onSuccess: (_, msgId) => setMessages(prev => prev.filter(m => m._id !== msgId)),
   })
 
-  // Socket listeners
+  // ── Socket listeners ──────────────────────────────────────
+  // NOTE: Do NOT emit join:trip here — TripDetail's useSocket(tripId) already
+  // joins the room. Emitting again would cause duplicate room joins.
   useEffect(() => {
     if (!socket) return
 
-    socket.emit('join-trip', tripId)
-
-    socket.on('new-message', (msg) => {
+    const onNewMessage = (msg) => {
       setMessages(prev => prev.find(m => m._id === msg._id) ? prev : [...prev, msg])
-      if (atBottom) setTimeout(() => scrollToBottom(), 50)
-    })
+      setAtBottom(prev => {
+        if (prev) setTimeout(() => scrollToBottom(), 50)
+        return prev
+      })
+    }
 
-    socket.on('message-deleted', (msgId) => {
+    const onDeleted = (msgId) => {
       setMessages(prev => prev.filter(m => m._id !== msgId))
-    })
+    }
 
-    socket.on('typing-start', ({ user, socketId }) => {
+    const onTypingStart = ({ user, socketId }) => {
+      // Don't show own typing indicator
+      if (socketId === socket.id) return
       setTypers(prev => ({ ...prev, [socketId]: user?.name || 'Someone' }))
-    })
+    }
 
-    socket.on('typing-stop', ({ socketId }) => {
+    const onTypingStop = ({ socketId }) => {
       setTypers(prev => { const n = { ...prev }; delete n[socketId]; return n })
-    })
+    }
+
+    socket.on('new-message',     onNewMessage)
+    socket.on('message-deleted', onDeleted)
+    socket.on('typing-start',    onTypingStart)
+    socket.on('typing-stop',     onTypingStop)
 
     return () => {
-      socket.off('new-message')
-      socket.off('message-deleted')
-      socket.off('typing-start')
-      socket.off('typing-stop')
-      socket.emit('leave-trip', tripId)
+      socket.off('new-message',     onNewMessage)
+      socket.off('message-deleted', onDeleted)
+      socket.off('typing-start',    onTypingStart)
+      socket.off('typing-stop',     onTypingStop)
     }
-  }, [socket, tripId, atBottom])
+  }, [socket])
 
-  const scrollToBottom = (behavior = 'smooth') => {
+  const scrollToBottom = (behavior = 'smooth') =>
     bottomRef.current?.scrollIntoView({ behavior })
-  }
 
+  // ── Input handling ────────────────────────────────────────
   const handleInput = (e) => {
     setInput(e.target.value)
-    // Typing indicator
     if (socket) {
       socket.emit('typing-start', { tripId, user: currentUser })
       clearTimeout(typingTimer.current)
@@ -136,22 +140,19 @@ export default function TripChat({ tripId, currentUser }) {
     const text = input.trim()
     if (!text || sending) return
     setInput('')
-    if (socket) socket.emit('typing-stop', { tripId })
     clearTimeout(typingTimer.current)
+    if (socket) socket.emit('typing-stop', { tripId })
     sendMsg(text)
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
   const typerNames = Object.values(typers)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#07070f', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#07070f', fontFamily: "'DM Sans', sans-serif", position: 'relative' }}>
 
       {/* Header */}
       <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -168,8 +169,6 @@ export default function TripChat({ tripId, currentUser }) {
           setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 60)
         }}
       >
-
-        {/* Load more */}
         {hasMore && (
           <button onClick={loadMore} disabled={loadingMore}
             style={{ alignSelf: 'center', marginBottom: 8, padding: '5px 14px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#606080', fontSize: 11, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
@@ -177,27 +176,26 @@ export default function TripChat({ tripId, currentUser }) {
           </button>
         )}
 
-        {/* Loading skeleton */}
         {isLoading && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
             <Loader2 size={22} color="#4f8ef7" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         )}
 
-        {/* Empty state */}
         {!isLoading && messages.length === 0 && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
             <p style={{ fontSize: 14, fontWeight: 700, color: '#f0f0f5', marginBottom: 6 }}>No messages yet</p>
-            <p style={{ fontSize: 12, color: '#505070' }}>Start the conversation with your trip members!</p>
+            <p style={{ fontSize: 12, color: '#505070' }}>Start the conversation!</p>
           </div>
         )}
 
-        {/* Message list */}
         {messages.map((msg, i) => {
-          const isMe      = msg.sender?._id === currentUser?._id || msg.sender === currentUser?._id
-          const prevMsg   = messages[i - 1]
-          const sameSender = prevMsg?.sender?._id === msg.sender?._id
+          const isMe       = msg.sender?._id === currentUser?._id || msg.sender === currentUser?._id
+          const prevMsg    = messages[i - 1]
+          const sameSender = prevMsg?.sender?._id
+            ? prevMsg.sender._id === msg.sender?._id
+            : prevMsg?.sender === msg.sender?._id
           const showAvatar = !isMe && !sameSender
 
           return (
@@ -207,7 +205,6 @@ export default function TripChat({ tripId, currentUser }) {
               isMe={isMe}
               showAvatar={showAvatar}
               sameSender={sameSender}
-              currentUser={currentUser}
               onDelete={isMe ? () => deleteMsg(msg._id) : null}
             />
           )
@@ -233,16 +230,15 @@ export default function TripChat({ tripId, currentUser }) {
       {/* Scroll to bottom FAB */}
       {!atBottom && (
         <button onClick={() => scrollToBottom()}
-          style={{ position: 'absolute', bottom: 80, right: 20, width: 32, height: 32, borderRadius: '50%', background: '#14142a', border: '1px solid rgba(255,255,255,0.15)', color: '#c0c0d8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+          style={{ position: 'absolute', bottom: 70, right: 16, width: 32, height: 32, borderRadius: '50%', background: '#14142a', border: '1px solid rgba(255,255,255,0.15)', color: '#c0c0d8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', zIndex: 10 }}>
           <ChevronDown size={14} />
         </button>
       )}
 
-      {/* Input bar */}
+      {/* Input */}
       <div style={{ padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0, background: '#0a0a18' }}>
         <textarea
-          ref={inputRef}
-          rows={1}
+          ref={inputRef} rows={1}
           placeholder="Send a message..."
           value={input}
           onChange={handleInput}
@@ -253,7 +249,7 @@ export default function TripChat({ tripId, currentUser }) {
           onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
         />
         <button onClick={handleSend} disabled={!input.trim() || sending}
-          style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: input.trim() ? 'linear-gradient(135deg,#4f8ef7,#7c3aed)' : 'rgba(255,255,255,0.06)', color: input.trim() ? '#fff' : '#404060', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: input.trim() ? 'pointer' : 'not-allowed', transition: 'all .15s', flexShrink: 0, boxShadow: input.trim() ? '0 4px 14px rgba(79,142,247,0.4)' : 'none' }}>
+          style={{ width: 38, height: 38, borderRadius: 12, border: 'none', background: input.trim() ? 'linear-gradient(135deg,#4f8ef7,#7c3aed)' : 'rgba(255,255,255,0.06)', color: input.trim() ? '#fff' : '#404060', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: input.trim() ? 'pointer' : 'not-allowed', transition: 'all .15s', flexShrink: 0 }}>
           <Send size={15} />
         </button>
       </div>
@@ -270,7 +266,6 @@ export default function TripChat({ tripId, currentUser }) {
   )
 }
 
-/* ── Message Bubble ── */
 function MessageBubble({ msg, isMe, showAvatar, sameSender, onDelete }) {
   const [hovered, setHovered] = useState(false)
 
@@ -280,7 +275,6 @@ function MessageBubble({ msg, isMe, showAvatar, sameSender, onDelete }) {
       onMouseLeave={() => setHovered(false)}
       style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8, marginTop: sameSender ? 2 : 10 }}
     >
-      {/* Avatar — only shown for first message in a group from others */}
       {!isMe && (
         <div style={{ width: 28, flexShrink: 0 }}>
           {showAvatar && <Avatar user={msg.sender} size={28} />}
@@ -288,8 +282,6 @@ function MessageBubble({ msg, isMe, showAvatar, sameSender, onDelete }) {
       )}
 
       <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-
-        {/* Sender name for others */}
         {showAvatar && !isMe && (
           <span style={{ fontSize: 11, color: '#606080', marginBottom: 3, marginLeft: 4 }}>
             {msg.sender?.name || 'Unknown'}
@@ -297,21 +289,17 @@ function MessageBubble({ msg, isMe, showAvatar, sameSender, onDelete }) {
         )}
 
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, flexDirection: isMe ? 'row-reverse' : 'row' }}>
-          {/* Bubble */}
           <div style={{
             padding: '8px 12px',
             borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
             background: isMe ? 'linear-gradient(135deg,#4f8ef7,#7c3aed)' : 'rgba(255,255,255,0.07)',
             color: isMe ? '#fff' : '#e0e0f0',
-            fontSize: 13,
-            lineHeight: 1.55,
-            wordBreak: 'break-word',
+            fontSize: 13, lineHeight: 1.55, wordBreak: 'break-word',
             border: isMe ? 'none' : '1px solid rgba(255,255,255,0.07)',
           }}>
             {msg.content}
           </div>
 
-          {/* Delete button */}
           {onDelete && hovered && (
             <button onClick={onDelete}
               style={{ width: 24, height: 24, borderRadius: 6, border: 'none', background: 'rgba(248,113,113,0.12)', color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -320,7 +308,6 @@ function MessageBubble({ msg, isMe, showAvatar, sameSender, onDelete }) {
           )}
         </div>
 
-        {/* Timestamp */}
         <span style={{ fontSize: 10, color: '#404060', marginTop: 3, marginLeft: isMe ? 0 : 4, marginRight: isMe ? 4 : 0 }}>
           {formatTime(msg.createdAt)}
         </span>
