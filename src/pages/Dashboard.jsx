@@ -7,7 +7,7 @@ import {
   Plus, MapPin, Calendar, Loader2, Hash,
   Trash2, MoreVertical, Search, Globe2,
   Wallet, TrendingUp, Clock, CheckSquare,
-  Edit3, Archive, ImagePlus, ChevronRight,
+  Edit3, Archive, ArchiveRestore, ImagePlus, ChevronRight,
 } from 'lucide-react'
 
 const fetchTrips = () => api.get('/trips').then(r => r.data.data)
@@ -78,7 +78,9 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
   const menuItems = [
     { icon: Edit3,     label: 'Edit trip',    color: '#c0c0d8', fn: () => { onEdit(trip);             setMenuOpen(false) } },
     { icon: ImagePlus, label: 'Upload cover', color: '#60a5fa', fn: () => { fileRef.current?.click(); setMenuOpen(false) } },
-    { icon: Archive,   label: 'Archive',      color: '#f59e0b', fn: () => { onArchive(trip._id);      setMenuOpen(false) } },
+    status === 'archived'
+      ? { icon: ArchiveRestore, label: 'Unarchive',   color: '#34d399', fn: () => { onArchive(trip._id, false); setMenuOpen(false) } }
+      : { icon: Archive,        label: 'Archive',      color: '#f59e0b', fn: () => { onArchive(trip._id, true);  setMenuOpen(false) } },
     { icon: Trash2,    label: 'Delete trip',  color: '#f87171', fn: () => { onDelete(trip);           setMenuOpen(false) } },
   ]
 
@@ -366,8 +368,12 @@ export default function Dashboard() {
   })
 
   const { mutate: archiveTrip } = useMutation({
-    mutationFn: id => api.patch(`/trips/${id}`, { status: 'archived' }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['trips'] }); toast.success('Trip archived') },
+    mutationFn: ({ id, archive }) => api.patch(`/trips/${id}`, { status: archive ? 'archived' : null }),
+    onSuccess: (_, { archive }) => {
+      qc.invalidateQueries({ queryKey: ['trips'] })
+      toast.success(archive ? 'Trip archived' : 'Trip unarchived')
+    },
+    onError: () => toast.error('Failed to update trip'),
   })
 
   const { mutate: uploadCover } = useMutation({
@@ -497,7 +503,7 @@ export default function Dashboard() {
           {filtered.map(trip => (
             <TripCard key={trip._id} trip={trip}
               onDelete={t   => setDeleteTarget(t)}
-              onArchive={id => archiveTrip(id)}
+              onArchive={(id, archive) => archiveTrip({ id, archive })}
               onEdit={t     => setEditTrip(t)}
               onImageUpload={(id, file) => uploadCover({ id, file })}
             />
