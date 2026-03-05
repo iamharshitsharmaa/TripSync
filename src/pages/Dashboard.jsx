@@ -18,6 +18,7 @@ function daysUntil(date) {
 }
 
 function tripStatus(trip) {
+  if (trip.status === 'archived') return 'archived'
   const now = new Date()
   const s   = new Date(trip.startDate)
   const e   = new Date(trip.endDate)
@@ -30,6 +31,7 @@ const STATUS_CFG = {
   ongoing:  { label: 'Ongoing',  color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)'  },
   upcoming: { label: 'Upcoming', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.3)'  },
   past:     { label: 'Past',     color: '#6b7280', bg: 'rgba(107,114,128,0.1)', border: 'rgba(107,114,128,0.2)' },
+  archived: { label: 'Archived', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.2)' },
 }
 
 const GRADIENTS = [
@@ -201,10 +203,10 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
 ═══════════════════════════════════════ */
 function StatsBar({ trips }) {
   const items = [
-    { icon: Globe2,      label: 'Total Trips',  value: trips.length,                                          color: '#60a5fa' },
-    { icon: TrendingUp,  label: 'Ongoing',      value: trips.filter(t => tripStatus(t) === 'ongoing').length,  color: '#34d399' },
-    { icon: Clock,       label: 'Upcoming',     value: trips.filter(t => tripStatus(t) === 'upcoming').length, color: '#a855f7' },
-    { icon: CheckSquare, label: 'Days Planned', value: trips.reduce((s, t) => s + (t.days?.length || 0), 0),  color: '#f59e0b' },
+    { icon: Globe2,      label: 'Total Trips',  value: trips.filter(t => tripStatus(t) !== 'archived').length, color: '#60a5fa' },
+    { icon: TrendingUp,  label: 'Ongoing',      value: trips.filter(t => tripStatus(t) === 'ongoing').length,   color: '#34d399' },
+    { icon: Clock,       label: 'Upcoming',     value: trips.filter(t => tripStatus(t) === 'upcoming').length,  color: '#a855f7' },
+    { icon: CheckSquare, label: 'Days Planned', value: trips.reduce((s, t) => s + (t.days?.length || 0), 0),   color: '#f59e0b' },
   ]
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 28 }}>
@@ -581,7 +583,7 @@ export default function Dashboard() {
             />
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {['all', 'ongoing', 'upcoming', 'past'].map(f => (
+            {['all', 'ongoing', 'upcoming', 'past', 'archived'].map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 style={{ padding: '9px 15px', borderRadius: 10, border: '1px solid', borderColor: filter === f ? '#4f8ef7' : 'rgba(255,255,255,0.08)', background: filter === f ? 'rgba(79,142,247,0.12)' : 'rgba(255,255,255,0.03)', color: filter === f ? '#60a5fa' : '#606080', fontSize: 12, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize', fontFamily: "'DM Sans', sans-serif" }}>
                 {f}

@@ -1,25 +1,15 @@
 import { useState } from 'react'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
+import { useDroppable } from '@dnd-kit/core'
 import {
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
-  arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '../../lib/axios'
-import toast from 'react-hot-toast'
 import ActivityCard from './ActivityCard'
 import AddActivityModal from './AddActivityModal'
-import { Plus, MessageSquare } from 'lucide-react'
 import CommentThread from '../comments/CommentThread'
+import { Plus, MessageSquare } from 'lucide-react'
 
 // ── Sortable wrapper around each ActivityCard
 function SortableActivityCard({ activity, tripId, role }) {
@@ -35,7 +25,7 @@ function SortableActivityCard({ activity, tripId, role }) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.45 : 1,
+    opacity: isDragging ? 0 : 1, // hide original while DragOverlay shows ghost
     zIndex: isDragging ? 999 : 'auto',
   }
 
@@ -51,61 +41,17 @@ function SortableActivityCard({ activity, tripId, role }) {
   )
 }
 
-// ── Main DayColumn
-export default function DayColumn({ trip, day, dayIndex, role }) {
-  const qc = useQueryClient()
-  const [showAddModal, setShowAddModal] = useState(false)
+// ── Main DayColumn — activities come from ItineraryBoard (no own fetching)
+export default function DayColumn({ trip, day, dayIndex, role, activities = [] }) {
+  const [showAddModal, setShowAddModal]     = useState(false)
   const [showDayComments, setShowDayComments] = useState(false)
 
-  // Fetch activities for this specific day
-  const { data: activities = [], isLoading } = useQuery({
-    queryKey: ['activities', trip._id, dayIndex],
-    queryFn: () =>
-      api
-        .get(`/trips/${trip._id}/activities?dayIndex=${dayIndex}`)
-        .then((r) => r.data.data),
-  })
+  // Make the whole column a drop target (for dragging into empty columns)
+  const { setNodeRef, isOver } = useDroppable({ id: `col-${dayIndex}` })
 
-  // Sorted by position
-  const sorted = [...activities].sort((a, b) => a.position - b.position)
-
-  // Reorder mutation
-  const { mutate: reorder } = useMutation({
-    mutationFn: ({ id, prevPosition, nextPosition }) =>
-      api.patch(`/activities/${id}/reorder`, { prevPosition, nextPosition }),
-    onError: () => {
-      toast.error('Reorder failed')
-      qc.invalidateQueries({ queryKey: ['activities', trip._id, dayIndex] })
-    },
-  })
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
-  )
-
-  function handleDragEnd({ active, over }) {
-    if (!over || active.id === over.id) return
-
-    const oldIdx = sorted.findIndex((a) => a._id === active.id)
-    const newIdx = sorted.findIndex((a) => a._id === over.id)
-    if (oldIdx === -1 || newIdx === -1) return
-
-    // Optimistically reorder in cache
-    const reordered = arrayMove(sorted, oldIdx, newIdx)
-    qc.setQueryData(['activities', trip._id, dayIndex], reordered)
-
-    const prev = reordered[newIdx - 1]?.position ?? null
-    const next = reordered[newIdx + 1]?.position ?? null
-
-    reorder({ id: active.id, prevPosition: prev, nextPosition: next })
-  }
-
-  // Format the day header date
   const dateLabel = day.date
     ? new Date(day.date).toLocaleDateString('en', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
+        weekday: 'short', month: 'short', day: 'numeric',
       })
     : `Day ${dayIndex + 1}`
 
@@ -119,8 +65,10 @@ export default function DayColumn({ trip, day, dayIndex, role }) {
         />
       )}
 
-      <div className="flex flex-col w-72 flex-shrink-0 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-
+      <div
+        className={`flex flex-col w-72 flex-shrink-0 bg-gray-900 border rounded-2xl overflow-hidden transition-colors
+          ${isOver ? 'border-blue-500/50 bg-blue-500/5' : 'border-gray-800'}`}
+      >
         {/* Day header */}
         <div className="px-4 pt-4 pb-3 border-b border-gray-800">
           <div className="flex items-center justify-between">
@@ -131,9 +79,7 @@ export default function DayColumn({ trip, day, dayIndex, role }) {
               <h3 className="text-sm font-bold text-white mt-0.5">
                 {day.title || dateLabel}
               </h3>
-              {day.title && (
-                <p className="text-xs text-gray-500">{dateLabel}</p>
-              )}
+              {day.title && <p className="text-xs text-gray-500">{dateLabel}</p>}
             </div>
 
             {role !== 'viewer' && (
@@ -147,13 +93,12 @@ export default function DayColumn({ trip, day, dayIndex, role }) {
             )}
           </div>
 
-          {/* Activity count badge */}
           <div className="flex items-center gap-2 mt-2">
             <span className="text-xs text-gray-600">
-              {sorted.length} activit{sorted.length !== 1 ? 'ies' : 'y'}
+              {activities.length} activit{activities.length !== 1 ? 'ies' : 'y'}
             </span>
             <button
-              onClick={() => setShowDayComments((p) => !p)}
+              onClick={() => setShowDayComments(p => !p)}
               className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-300 transition"
             >
               <MessageSquare size={10} /> Notes
@@ -172,51 +117,49 @@ export default function DayColumn({ trip, day, dayIndex, role }) {
           </div>
         )}
 
-        {/* Activity list */}
-        <div className="flex-1 p-3 overflow-y-auto max-h-[calc(100vh-280px)]">
-          {isLoading && (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
-
-          {!isLoading && sorted.length === 0 && (
+        {/* Drop zone + activity list */}
+        <div
+          ref={setNodeRef}
+          className="flex-1 p-3 overflow-y-auto max-h-[calc(100vh-280px)]"
+        >
+          {activities.length === 0 && (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <p className="text-2xl mb-2">📅</p>
-              <p className="text-xs text-gray-600">No activities yet</p>
-              {role !== 'viewer' && (
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="mt-3 text-xs text-blue-400 hover:text-blue-300 transition"
-                >
-                  + Add first activity
-                </button>
-              )}
+              {isOver
+                ? <p className="text-xs text-blue-400 font-semibold">Drop here</p>
+                : (
+                  <>
+                    <p className="text-2xl mb-2">📅</p>
+                    <p className="text-xs text-gray-600">No activities yet</p>
+                    {role !== 'viewer' && (
+                      <button
+                        onClick={() => setShowAddModal(true)}
+                        className="mt-3 text-xs text-blue-400 hover:text-blue-300 transition"
+                      >
+                        + Add first activity
+                      </button>
+                    )}
+                  </>
+                )
+              }
             </div>
           )}
 
-          {!isLoading && sorted.length > 0 && (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+          {activities.length > 0 && (
+            <SortableContext
+              items={activities.map(a => a._id)}
+              strategy={verticalListSortingStrategy}
             >
-              <SortableContext
-                items={sorted.map((a) => a._id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-2">
-                  {sorted.map((activity) => (
-                    <SortableActivityCard
-                      key={activity._id}
-                      activity={activity}
-                      tripId={trip._id}
-                      role={role}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+              <div className="space-y-2">
+                {activities.map(activity => (
+                  <SortableActivityCard
+                    key={activity._id}
+                    activity={activity}
+                    tripId={trip._id}
+                    role={role}
+                  />
+                ))}
+              </div>
+            </SortableContext>
           )}
         </div>
       </div>
