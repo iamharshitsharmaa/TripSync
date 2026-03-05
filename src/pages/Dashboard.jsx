@@ -36,10 +36,14 @@ const GRADIENTS = [
   'linear-gradient(135deg,#2a0a3a 0%,#0a2a3a 100%)',
 ]
 
-// Trip Card
+/* ─────────────────────────────────────────────
+   TRIP CARD
+───────────────────────────────────────────── */
 function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuPos,  setMenuPos]  = useState({ top: 0, right: 0 })
   const fileRef = useRef(null)
+  const btnRef  = useRef(null)
   const status  = tripStatus(trip)
   const cfg     = STATUS_CFG[status]
   const days    = daysUntil(trip.startDate)
@@ -53,20 +57,62 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
     e.target.value = ''
   }
 
+  const openMenu = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = btnRef.current.getBoundingClientRect()
+    setMenuPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+    setMenuOpen(true)
+  }
+
   const menuItems = [
-    { icon: Edit3,     label: 'Edit trip',     color: '#c0c0d8', action: () => { onEdit(trip);          setMenuOpen(false) } },
-    { icon: ImagePlus, label: 'Upload cover',  color: '#60a5fa', action: () => { fileRef.current?.click(); setMenuOpen(false) } },
-    { icon: Archive,   label: 'Archive',       color: '#f59e0b', action: () => { onArchive(trip._id);   setMenuOpen(false) } },
-    { icon: Trash2,    label: 'Delete trip',   color: '#f87171', action: () => { onDelete(trip);        setMenuOpen(false) } },
+    { icon: Edit3,     label: 'Edit trip',    color: '#c0c0d8', action: () => { onEdit(trip);            setMenuOpen(false) } },
+    { icon: ImagePlus, label: 'Upload cover', color: '#60a5fa', action: () => { fileRef.current?.click(); setMenuOpen(false) } },
+    { icon: Archive,   label: 'Archive',      color: '#f59e0b', action: () => { onArchive(trip._id);     setMenuOpen(false) } },
+    { icon: Trash2,    label: 'Delete trip',  color: '#f87171', action: () => { onDelete(trip);          setMenuOpen(false) } },
   ]
 
   return (
-    <div style={{ background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, transition: 'border-color .2s, transform .2s', position: 'relative', cursor: 'default' }}
+    <div style={{ background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, transition: 'border-color .2s', cursor: 'default' }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none' }}
     >
       {/* Hidden file input */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+
+      {/* Fixed-position dropdown — renders outside all parent containers */}
+      {menuOpen && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setMenuOpen(false)} />
+          <div style={{
+            position: 'fixed',
+            top: menuPos.top,
+            right: menuPos.right,
+            zIndex: 9999,
+            background: '#14142a',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 12,
+            padding: 6,
+            minWidth: 175,
+            boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+          }}>
+            {menuItems.map(item => (
+              <button key={item.label} onClick={(e) => { e.stopPropagation(); item.action() }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+                  padding: '9px 12px', borderRadius: 8, border: 'none',
+                  background: 'none', color: item.color, fontSize: 13, fontWeight: 500,
+                  cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans', sans-serif",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+              >
+                <item.icon size={13} /> {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Cover */}
       <div style={{ height: 130, background: trip.coverImage ? undefined : grad, position: 'relative', overflow: 'hidden', borderRadius: '18px 18px 0 0' }}>
@@ -82,47 +128,18 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
           </span>
         </div>
 
-        {/* 3-dot menu — always visible, no hover dependency */}
-        <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 10 }}>
-          <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(p => !p) }}
+        {/* 3-dot button */}
+        <div style={{ position: 'absolute', top: 10, right: 12 }}>
+          <button ref={btnRef} onClick={openMenu}
             style={{
               width: 30, height: 30, borderRadius: 8,
               background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.15)',
               color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', flexShrink: 0,
+              cursor: 'pointer',
             }}
           >
             <MoreVertical size={14} />
           </button>
-
-          {menuOpen && (
-            <>
-              {/* Click outside to close */}
-              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)} />
-              <div style={{
-                position: 'absolute', top: 36, right: 0, zIndex: 50,
-                background: '#14142a', border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: 12, padding: 6, minWidth: 170,
-                boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
-              }}>
-                {menuItems.map(item => (
-                  <button key={item.label} onClick={(e) => { e.stopPropagation(); item.action() }}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                      padding: '9px 12px', borderRadius: 8, border: 'none',
-                      background: 'none', color: item.color, fontSize: 13, fontWeight: 500,
-                      cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans', sans-serif",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                  >
-                    <item.icon size={13} /> {item.label}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
         </div>
 
         {/* Upload cover hint (if no image) */}
