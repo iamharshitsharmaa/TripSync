@@ -36,9 +36,7 @@ const GRADIENTS = [
   'linear-gradient(135deg,#2a0a3a 0%,#0a2a3a 100%)',
 ]
 
-/* ─────────────────────────────────────────────
-   TRIP CARD
-───────────────────────────────────────────── */
+// Trip Card
 function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const fileRef = useRef(null)
@@ -63,15 +61,15 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
   ]
 
   return (
-    <div style={{ background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, overflow: 'hidden', transition: 'border-color .2s, transform .2s', position: 'relative', cursor: 'default' }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.transform = 'translateY(-3px)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(0)' }}
+    <div style={{ background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, transition: 'border-color .2s, transform .2s', position: 'relative', cursor: 'default' }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none' }}
     >
       {/* Hidden file input */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
       {/* Cover */}
-      <div style={{ height: 130, background: trip.coverImage ? undefined : grad, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ height: 130, background: trip.coverImage ? undefined : grad, position: 'relative', overflow: 'hidden', borderRadius: '18px 18px 0 0' }}>
         {trip.coverImage && (
           <img src={trip.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.65 }} />
         )}
