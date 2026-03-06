@@ -2,322 +2,325 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/axios'
 import toast from 'react-hot-toast'
-import { UserPlus, Trash2, Crown, Pencil, Eye, Copy, RefreshCw, Link2, Hash } from 'lucide-react'
+import { useTheme } from '../../context/ThemeContext'
+import {
+  UserPlus, Trash2, Crown, Pencil, Eye, Copy,
+  RefreshCw, Link2, Hash, X, Users, ChevronDown,
+} from 'lucide-react'
 
-const ROLE_CONFIG = {
-  owner:  { label: 'Owner',  color: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20', icon: Crown },
-  editor: { label: 'Editor', color: 'bg-blue-500/15 text-blue-400 border-blue-500/20',       icon: Pencil },
-  viewer: { label: 'Viewer', color: 'bg-gray-500/15 text-gray-400 border-gray-500/20',       icon: Eye },
+const ROLE_CFG = {
+  owner:  { label:'Owner',  icon:Crown,  accent: T => T.sage    },
+  editor: { label:'Editor', icon:Pencil, accent: T => T.skyTeal  },
+  viewer: { label:'Viewer', icon:Eye,    accent: T => T.textMuted },
 }
 
+const AVATAR_COLORS = T => [
+  `${T.deepTeal}cc`, `${T.sage}cc`, `${T.skyTeal}cc`,
+  `${T.deepTeal}99`, `${T.sage}99`, `${T.skyTeal}99`,
+]
+
 export default function MembersPanel({ trip, role, currentUserId }) {
+  const { T } = useTheme()
   const qc = useQueryClient()
-  const [tab, setTab] = useState('email') // 'email' | 'code'
-  const [inviteForm, setInviteForm] = useState({ email: '', role: 'editor' })
-  const [joinCode, setJoinCode] = useState('')
+  const [tab,        setTab]        = useState('email')
+  const [inviteForm, setInviteForm] = useState({ email:'', role:'editor' })
+  const [joinCode,   setJoinCode]   = useState('')
   const [showInvite, setShowInvite] = useState(false)
   const [inviteLink, setInviteLink] = useState(null)
 
   const accepted = trip.members?.filter(m => m.inviteStatus === 'accepted') || []
   const pending  = trip.members?.filter(m => m.inviteStatus === 'pending')  || []
 
-  // ── Invite by email
+  /* ── Mutations ── */
   const { mutate: invite, isPending: inviting } = useMutation({
-    mutationFn: (data) => api.post(`/trips/${trip._id}/invite`, data).then(r => r.data.data),
-    onSuccess: (data) => {
-      toast.success('Invite sent! 📧')
-      setInviteLink(data.inviteLink) // show manual link as fallback
-      setInviteForm({ email: '', role: 'editor' })
-      qc.invalidateQueries({ queryKey: ['trip', trip._id] })
+    mutationFn: d => api.post(`/trips/${trip._id}/invite`, d).then(r => r.data.data),
+    onSuccess: d => {
+      toast.success('Invite sent!')
+      setInviteLink(d.inviteLink)
+      setInviteForm({ email:'', role:'editor' })
+      qc.invalidateQueries({ queryKey:['trip', trip._id] })
     },
-    onError: (err) => toast.error(err.response?.data?.message || 'Failed to send invite'),
+    onError: e => toast.error(e.response?.data?.message || 'Failed to send invite'),
   })
 
-  // ── Regenerate invite code
   const { mutate: regenCode, isPending: regening } = useMutation({
     mutationFn: () => api.post(`/trips/${trip._id}/invite-code/regenerate`).then(r => r.data.data),
-    onSuccess: () => {
-      toast.success('New code generated')
-      qc.invalidateQueries({ queryKey: ['trip', trip._id] })
-    },
+    onSuccess: () => { toast.success('New code generated'); qc.invalidateQueries({ queryKey:['trip', trip._id] }) },
   })
 
-  // ── Join by code (for viewers joining from code)
   const { mutate: joinByCode, isPending: joining } = useMutation({
-    mutationFn: (code) => api.post(`/trips/${trip._id}/join`, { code }).then(r => r.data.data),
-    onSuccess: () => {
-      toast.success('Joined trip!')
-      qc.invalidateQueries({ queryKey: ['trip', trip._id] })
-      setJoinCode('')
-    },
-    onError: (err) => toast.error(err.response?.data?.message || 'Invalid code'),
+    mutationFn: code => api.post(`/trips/${trip._id}/join`, { code }).then(r => r.data.data),
+    onSuccess: () => { toast.success('Joined trip!'); qc.invalidateQueries({ queryKey:['trip', trip._id] }); setJoinCode('') },
+    onError: e => toast.error(e.response?.data?.message || 'Invalid code'),
   })
 
-  // ── Update role
   const { mutate: updateRole } = useMutation({
     mutationFn: ({ userId, role }) => api.patch(`/trips/${trip._id}/members/${userId}`, { role }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['trip', trip._id] }); toast.success('Role updated') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['trip', trip._id] }); toast.success('Role updated') },
   })
 
-  // ── Remove member
   const { mutate: removeMember } = useMutation({
-    mutationFn: (userId) => api.delete(`/trips/${trip._id}/members/${userId}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['trip', trip._id] }); toast.success('Member removed') },
+    mutationFn: userId => api.delete(`/trips/${trip._id}/members/${userId}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey:['trip', trip._id] }); toast.success('Member removed') },
   })
 
-  const copyToClipboard = (text, label) => {
-    navigator.clipboard.writeText(text)
-    toast.success(`${label} copied!`)
-  }
+  const copy = (text, label) => { navigator.clipboard.writeText(text); toast.success(`${label} copied!`) }
 
-  const inputCls = "w-full px-3.5 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-500 transition"
+  const IS = { width:'100%', padding:'10px 13px', borderRadius:9, border:`1.5px solid ${T.border}`, background:T.inputBg, color:T.text, fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', transition:'border-color .15s' }
+  const focus = e => e.target.style.borderColor = T.deepTeal
+  const blur  = e => e.target.style.borderColor = T.border
 
   return (
-    <div className="max-w-2xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div style={{ maxWidth:680, fontFamily:"'DM Sans',sans-serif" }}>
+
+      {/* ── Header ── */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20, gap:12, flexWrap:'wrap' }}>
         <div>
-          <h2 className="text-lg font-bold text-white">Trip Members</h2>
-          <p className="text-gray-400 text-sm">{accepted.length} member{accepted.length !== 1 ? 's' : ''}</p>
+          <p style={{ fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:T.textMuted, marginBottom:4 }}>Trip</p>
+          <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:700, color:T.text, lineHeight:1 }}>Members</h2>
+          <p style={{ fontSize:12, color:T.textMuted, marginTop:5 }}>
+            <Users size={11} style={{ display:'inline', marginRight:4 }} color={T.skyTeal}/>
+            {accepted.length} member{accepted.length !== 1 ? 's' : ''}
+            {pending.length > 0 && <span style={{ marginLeft:8, color:T.textMuted }}>· {pending.length} pending</span>}
+          </p>
         </div>
         {role === 'owner' && (
-          <button
-            onClick={() => setShowInvite(p => !p)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500
-              text-white font-semibold text-sm rounded-xl transition"
-          >
-            <UserPlus size={15} /> Invite
+          <button onClick={() => setShowInvite(p => !p)}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 16px', borderRadius:9, border: showInvite ? `1.5px solid ${T.deepTeal}` : 'none', background: showInvite ? `${T.deepTeal}12` : `linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color: showInvite ? T.deepTeal : '#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", boxShadow: showInvite ? 'none' : `0 4px 14px ${T.deepTeal}35`, transition:'all .2s' }}>
+            {showInvite ? <X size={13}/> : <UserPlus size={13}/>}
+            {showInvite ? 'Close' : 'Invite'}
           </button>
         )}
       </div>
 
-      {/* Invite panel */}
+      {/* ── Invite panel ── */}
       {showInvite && role === 'owner' && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 mb-6">
+        <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:14, padding:'18px', marginBottom:20, boxShadow:`0 4px 20px ${T.shadow}` }}>
 
-          {/* Tabs */}
-          <div className="flex gap-1 bg-gray-900 rounded-lg p-1 mb-4">
-            <button
-              onClick={() => setTab('email')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition
-                ${tab === 'email' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              <Link2 size={12} /> Invite by Email
-            </button>
-            <button
-              onClick={() => setTab('code')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition
-                ${tab === 'code' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              <Hash size={12} /> Invite Code
-            </button>
+          {/* Tab bar */}
+          <div style={{ display:'flex', gap:4, background:T.bgAlt, borderRadius:9, padding:4, marginBottom:18 }}>
+            {[
+              { id:'email', icon:Link2,  label:'Invite by Email' },
+              { id:'code',  icon:Hash,   label:'Invite Code'     },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'7px', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .15s', fontFamily:"'DM Sans',sans-serif",
+                  background: tab===t.id ? T.bgCard : 'none',
+                  color:      tab===t.id ? T.deepTeal : T.textMuted,
+                  border:     tab===t.id ? `1px solid ${T.border}` : '1px solid transparent',
+                  boxShadow:  tab===t.id ? `0 1px 4px ${T.shadow}` : 'none',
+                }}>
+                <t.icon size={11}/>{t.label}
+              </button>
+            ))}
           </div>
 
-          {/* Email invite */}
+          {/* Email tab */}
           {tab === 'email' && (
-            <div className="space-y-3">
-              <div className="flex gap-3">
-                <input
-                  type="email"
-                  placeholder="colleague@email.com"
-                  className={inputCls}
-                  value={inviteForm.email}
-                  onChange={e => setInviteForm(p => ({ ...p, email: e.target.value }))}
-                />
-                <select
-                  className="px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-xl text-white text-sm focus:outline-none"
-                  value={inviteForm.role}
-                  onChange={e => setInviteForm(p => ({ ...p, role: e.target.value }))}
-                >
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-                <button
-                  onClick={() => inviteForm.email && invite(inviteForm)}
-                  disabled={!inviteForm.email || inviting}
-                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold
-                    rounded-xl text-sm disabled:opacity-50 whitespace-nowrap"
-                >
-                  {inviting ? 'Sending...' : 'Send'}
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <input type="email" placeholder="colleague@email.com" style={{ ...IS, flex:'1 1 180px' }}
+                  value={inviteForm.email} onChange={e => setInviteForm(p => ({ ...p, email:e.target.value }))}
+                  onFocus={focus} onBlur={blur}/>
+
+                {/* Role select */}
+                <div style={{ position:'relative', flexShrink:0 }}>
+                  <select style={{ ...IS, width:'auto', paddingRight:30, cursor:'pointer', appearance:'none' }}
+                    value={inviteForm.role} onChange={e => setInviteForm(p => ({ ...p, role:e.target.value }))}
+                    onFocus={focus} onBlur={blur}>
+                    <option value="editor">Editor</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                  <ChevronDown size={11} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', color:T.textMuted, pointerEvents:'none' }}/>
+                </div>
+
+                <button onClick={() => inviteForm.email && invite(inviteForm)} disabled={!inviteForm.email || inviting}
+                  style={{ padding:'10px 18px', borderRadius:9, border:'none', background:`linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color:'#fff', fontSize:13, fontWeight:700, cursor:(!inviteForm.email||inviting)?'not-allowed':'pointer', opacity:(!inviteForm.email||inviting)?.6:1, fontFamily:"'DM Sans',sans-serif", whiteSpace:'nowrap', boxShadow:`0 4px 14px ${T.deepTeal}30` }}>
+                  {inviting ? 'Sending…' : 'Send Invite'}
                 </button>
               </div>
 
               {/* Manual link fallback */}
               {inviteLink && (
-                <div className="flex items-center gap-2 p-3 bg-gray-900 rounded-lg">
-                  <p className="text-xs text-gray-400 flex-1 truncate">
-                    Manual link: <span className="text-blue-400">{inviteLink}</span>
+                <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 13px', background:T.bgAlt, border:`1px solid ${T.border}`, borderRadius:9 }}>
+                  <p style={{ fontSize:11, color:T.textMuted, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    <span style={{ color:T.deepTeal, fontWeight:600 }}>Link: </span>{inviteLink}
                   </p>
-                  <button
-                    onClick={() => copyToClipboard(inviteLink, 'Invite link')}
-                    className="text-gray-400 hover:text-white flex-shrink-0"
-                  >
-                    <Copy size={13} />
+                  <button onClick={() => copy(inviteLink, 'Invite link')}
+                    style={{ background:'none', border:'none', color:T.textMuted, cursor:'pointer', display:'flex', flexShrink:0, transition:'color .15s' }}
+                    onMouseEnter={e => e.currentTarget.style.color=T.deepTeal}
+                    onMouseLeave={e => e.currentTarget.style.color=T.textMuted}>
+                    <Copy size={13}/>
                   </button>
                 </div>
               )}
             </div>
           )}
 
-          {/* Invite code */}
+          {/* Code tab */}
           {tab === 'code' && (
-            <div className="space-y-3">
-              <p className="text-xs text-gray-400">
-                Share this code with anyone — they can join as a Viewer instantly without email.
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <p style={{ fontSize:12, color:T.textMuted, lineHeight:1.6 }}>
+                Share this code — anyone can join instantly as a Viewer. You can change their role afterwards.
               </p>
 
               {/* Code display */}
-              <div className="flex items-center gap-3 p-4 bg-gray-900 rounded-xl border border-gray-700">
-                <div className="flex-1 text-center">
-                  <p className="text-xs text-gray-500 mb-1 uppercase tracking-widest">Invite Code</p>
-                  <p className="text-3xl font-bold text-white tracking-[0.3em] font-mono">
-                    {trip.inviteCode || '------'}
+              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'18px', background:T.bgAlt, border:`1px solid ${T.border}`, borderRadius:12 }}>
+                <div style={{ flex:1, textAlign:'center' }}>
+                  <p style={{ fontSize:9, fontWeight:800, letterSpacing:2.5, textTransform:'uppercase', color:T.textMuted, marginBottom:8 }}>Invite Code</p>
+                  <p style={{ fontSize:32, fontWeight:800, letterSpacing:'0.35em', color:T.text, fontFamily:'monospace', lineHeight:1 }}>
+                    {trip.inviteCode || '——————'}
                   </p>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => copyToClipboard(trip.inviteCode, 'Invite code')}
-                    title="Copy code"
-                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition"
-                  >
-                    <Copy size={15} />
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  <button onClick={() => copy(trip.inviteCode, 'Invite code')} title="Copy code"
+                    style={{ width:34, height:34, borderRadius:8, border:`1px solid ${T.border}`, background:T.bgCard, color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all .15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.color=T.deepTeal; e.currentTarget.style.borderColor=T.deepTeal }}
+                    onMouseLeave={e => { e.currentTarget.style.color=T.textMuted; e.currentTarget.style.borderColor=T.border }}>
+                    <Copy size={13}/>
                   </button>
-                  <button
-                    onClick={() => regenCode()}
-                    disabled={regening}
-                    title="Generate new code"
-                    className="p-2 text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition disabled:opacity-50"
-                  >
-                    <RefreshCw size={15} className={regening ? 'animate-spin' : ''} />
+                  <button onClick={() => regenCode()} disabled={regening} title="Generate new code"
+                    style={{ width:34, height:34, borderRadius:8, border:`1px solid ${T.border}`, background:T.bgCard, color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:regening?'not-allowed':'pointer', transition:'all .15s', opacity:regening?.6:1 }}
+                    onMouseEnter={e => { e.currentTarget.style.color='#d97706'; e.currentTarget.style.borderColor='rgba(217,119,6,.4)' }}
+                    onMouseLeave={e => { e.currentTarget.style.color=T.textMuted; e.currentTarget.style.borderColor=T.border }}>
+                    <RefreshCw size={13} style={{ animation:regening?'spin 1s linear infinite':'none' }}/>
                   </button>
                 </div>
               </div>
 
-              {/* Copy full join URL */}
-              <button
-                onClick={() => copyToClipboard(
-                  `Join my trip "${trip.title}" on TripSync!\nTrip ID: ${trip._id}\nInvite Code: ${trip.inviteCode}`,
-                  'Invite details'
-                )}
-                className="w-full py-2 border border-gray-600 rounded-lg text-xs text-gray-300
-                  hover:bg-gray-700 transition flex items-center justify-center gap-2"
-              >
-                <Copy size={12} /> Copy invite details
+              <button onClick={() => copy(`Join my trip "${trip.title}" on TripSync!\nTrip ID: ${trip._id}\nInvite Code: ${trip.inviteCode}`, 'Invite details')}
+                style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'9px', borderRadius:9, border:`1.5px solid ${T.border}`, background:'none', color:T.textMuted, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'border-color .15s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor=T.deepTeal}
+                onMouseLeave={e => e.currentTarget.style.borderColor=T.border}>
+                <Copy size={11}/> Copy invite details
               </button>
-
-              <p className="text-xs text-gray-600 text-center">
-                Anyone with this code joins as Viewer. You can change their role after they join.
-              </p>
             </div>
           )}
         </div>
       )}
 
-      {/* Join by code (for non-owners who aren't members yet — shown on public trips) */}
+      {/* ── Join by code (viewer) ── */}
       {role === 'viewer' && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
-          <p className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <Hash size={14} className="text-purple-400" /> Join another trip with code
+        <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:14, padding:'16px 18px', marginBottom:20 }}>
+          <p style={{ fontSize:12, fontWeight:700, color:T.text, marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>
+            <Hash size={12} color={T.deepTeal}/> Join another trip with code
           </p>
-          <div className="flex gap-2">
-            <input
-              placeholder="Enter 6-digit code"
-              maxLength={6}
-              className="flex-1 px-3.5 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white
-                text-sm placeholder-gray-500 focus:outline-none focus:border-purple-500 uppercase tracking-widest"
-              value={joinCode}
-              onChange={e => setJoinCode(e.target.value.toUpperCase())}
-            />
-            <button
-              onClick={() => joinCode.length === 6 && joinByCode(joinCode)}
-              disabled={joinCode.length !== 6 || joining}
-              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold
-                rounded-xl text-sm disabled:opacity-50"
-            >
-              {joining ? 'Joining...' : 'Join'}
+          <div style={{ display:'flex', gap:8 }}>
+            <input placeholder="Enter 6-digit code" maxLength={6} style={{ ...IS, flex:1, letterSpacing:'0.25em', textTransform:'uppercase', fontFamily:'monospace' }}
+              value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())}
+              onFocus={focus} onBlur={blur}/>
+            <button onClick={() => joinCode.length === 6 && joinByCode(joinCode)} disabled={joinCode.length !== 6 || joining}
+              style={{ padding:'10px 18px', borderRadius:9, border:'none', background:`linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color:'#fff', fontSize:13, fontWeight:700, cursor:(joinCode.length!==6||joining)?'not-allowed':'pointer', opacity:(joinCode.length!==6||joining)?.6:1, fontFamily:"'DM Sans',sans-serif" }}>
+              {joining ? 'Joining…' : 'Join'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Member list */}
-      <div className="space-y-2 mb-6">
-        {accepted.map(member => {
-          const cfg  = ROLE_CONFIG[member.role] || ROLE_CONFIG.viewer
-          const Icon = cfg.icon
-          const isMe      = member.user?._id === currentUserId || member.user === currentUserId
-          const isOwner   = member.role === 'owner'
+      {/* ── Member list ── */}
+      <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:24 }}>
+        {accepted.map((member, i) => {
+          const cfg    = ROLE_CFG[member.role] || ROLE_CFG.viewer
+          const Icon   = cfg.icon
+          const accent = cfg.accent(T)
+          const isMe   = member.user?._id === currentUserId || member.user === currentUserId
+          const isOwner = member.role === 'owner'
+          const avatarBg = AVATAR_COLORS(T)[i % 6]
 
           return (
-            <div key={member._id}
-              className="flex items-center gap-3 p-3.5 bg-gray-900 border border-gray-800 rounded-xl"
-            >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-600
-                flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                {member.user?.name?.[0]?.toUpperCase() || '?'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white flex items-center gap-2">
-                  {member.user?.name || 'Unknown'}
-                  {isMe && <span className="text-xs text-gray-500">(you)</span>}
-                </p>
-                <p className="text-xs text-gray-500 truncate">{member.user?.email}</p>
-              </div>
-
-              <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1
-                rounded-lg font-semibold border ${cfg.color}`}>
-                <Icon size={11} /> {cfg.label}
-              </span>
-
-              {role === 'owner' && !isOwner && !isMe && (
-                <div className="flex gap-1 ml-1">
-                  <select
-                    className="text-xs px-2 py-1.5 bg-gray-700 border border-gray-600
-                      rounded-lg text-gray-300 focus:outline-none"
-                    value={member.role}
-                    onChange={e => updateRole({ userId: member.user?._id || member.user, role: e.target.value })}
-                  >
-                    <option value="editor">Editor</option>
-                    <option value="viewer">Viewer</option>
-                  </select>
-                  <button
-                    onClick={() => confirm('Remove this member?') &&
-                      removeMember(member.user?._id || member.user)}
-                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              )}
-            </div>
+            <MemberRow key={member._id}
+              member={member} isMe={isMe} isOwner={isOwner}
+              cfg={cfg} Icon={Icon} accent={accent} avatarBg={avatarBg}
+              canEdit={role === 'owner' && !isOwner && !isMe}
+              T={T}
+              onRoleChange={r => updateRole({ userId: member.user?._id || member.user, role: r })}
+              onRemove={() => confirm('Remove this member?') && removeMember(member.user?._id || member.user)}
+            />
           )
         })}
       </div>
 
-      {/* Pending invites */}
+      {/* ── Pending invites ── */}
       {pending.length > 0 && (
         <div>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-            Pending Invites
-          </h3>
-          <div className="space-y-2">
+          <p style={{ fontSize:10, fontWeight:800, letterSpacing:2.5, textTransform:'uppercase', color:T.textMuted, marginBottom:10 }}>Pending Invites</p>
+          <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
             {pending.map(m => (
-              <div key={m._id}
-                className="flex items-center gap-3 p-3 bg-gray-900/50
-                  border border-dashed border-gray-700 rounded-xl"
-              >
-                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center
-                  justify-center text-gray-500 flex-shrink-0 text-sm">?</div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-300">{m.inviteEmail || 'Invited user'}</p>
-                  <p className="text-xs text-gray-500">Pending · {m.role}</p>
+              <div key={m._id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:T.bgCard, border:`1px dashed ${T.border}`, borderRadius:12 }}>
+                <div style={{ width:36, height:36, borderRadius:'50%', background:T.bgAlt, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, color:T.textMuted, flexShrink:0 }}>?</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ fontSize:13, color:T.textMid, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.inviteEmail || 'Invited user'}</p>
+                  <p style={{ fontSize:11, color:T.textMuted, marginTop:2 }}>Pending · {m.role}</p>
                 </div>
-                <span className="text-xs px-2 py-1 bg-yellow-500/10 text-yellow-500 rounded-lg">
-                  Pending
-                </span>
+                <span style={{ fontSize:11, fontWeight:700, color:'#d97706', background:'rgba(217,119,6,.1)', border:'1px solid rgba(217,119,6,.25)', padding:'3px 10px', borderRadius:20 }}>Pending</span>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      <style>{`@keyframes spin { to { transform:rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+
+/* ── Member row — own component for hover state ── */
+function MemberRow({ member, isMe, isOwner, cfg, Icon, accent, avatarBg, canEdit, T, onRoleChange, onRemove }) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display:'flex', alignItems:'center', gap:12, padding:'13px 14px',
+        background: hovered ? T.bgCardAlt : T.bgCard,
+        border:`1px solid ${hovered ? `${accent}30` : T.border}`,
+        borderRadius:13, transition:'all .15s',
+      }}>
+
+      {/* Avatar */}
+      <div style={{ width:38, height:38, borderRadius:'50%', background:avatarBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, color:'#fff', flexShrink:0, overflow:'hidden', border:`2px solid ${T.bgCard}` }}>
+        {member.user?.avatar
+          ? <img src={member.user.avatar} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+          : member.user?.name?.[0]?.toUpperCase() || '?'
+        }
+      </div>
+
+      {/* Info */}
+      <div style={{ flex:1, minWidth:0 }}>
+        <p style={{ fontSize:13, fontWeight:700, color:T.text, display:'flex', alignItems:'center', gap:6, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+          {member.user?.name || 'Unknown'}
+          {isMe && <span style={{ fontSize:10, color:T.textMuted, fontWeight:500 }}>(you)</span>}
+        </p>
+        <p style={{ fontSize:11, color:T.textMuted, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:1 }}>{member.user?.email}</p>
+      </div>
+
+      {/* Role badge */}
+      <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:20, letterSpacing:.3, background:`${accent}14`, color:accent, border:`1px solid ${accent}28`, flexShrink:0 }}>
+        <Icon size={10}/>{cfg.label}
+      </span>
+
+      {/* Owner controls */}
+      {canEdit && (
+        <div style={{ display:'flex', gap:6, alignItems:'center', opacity:hovered?1:.5, transition:'opacity .15s' }}>
+          <div style={{ position:'relative' }}>
+            <select
+              value={member.role} onChange={e => onRoleChange(e.target.value)}
+              style={{ padding:'5px 26px 5px 9px', borderRadius:8, border:`1px solid ${T.border}`, background:T.bgAlt, color:T.textMid, fontSize:12, fontWeight:500, cursor:'pointer', outline:'none', appearance:'none', fontFamily:"'DM Sans',sans-serif", transition:'border-color .15s' }}
+              onFocus={e => e.target.style.borderColor=T.deepTeal}
+              onBlur={e => e.target.style.borderColor=T.border}>
+              <option value="editor">Editor</option>
+              <option value="viewer">Viewer</option>
+            </select>
+            <ChevronDown size={10} style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', color:T.textMuted, pointerEvents:'none' }}/>
+          </div>
+          <button onClick={onRemove}
+            style={{ width:30, height:30, borderRadius:8, border:`1px solid ${T.border}`, background:'none', color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.color='#dc2626'; e.currentTarget.style.borderColor='rgba(220,38,38,.3)'; e.currentTarget.style.background='rgba(220,38,38,.07)' }}
+            onMouseLeave={e => { e.currentTarget.style.color=T.textMuted; e.currentTarget.style.borderColor=T.border; e.currentTarget.style.background='none' }}>
+            <Trash2 size={12}/>
+          </button>
         </div>
       )}
     </div>

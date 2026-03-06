@@ -2,172 +2,292 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/axios'
 import toast from 'react-hot-toast'
-import { Plus, Trash2, CheckSquare, Package, ListTodo } from 'lucide-react'
+import { useTheme } from '../../context/ThemeContext'
+import { Plus, Trash2, CheckSquare, Package, ListTodo, Check, Loader2 } from 'lucide-react'
 
 const TYPE_CONFIG = {
-  packing: { label: 'Packing List', icon: Package, color: 'text-blue-400' },
-  todo:    { label: 'To-Do',        icon: ListTodo, color: 'text-green-400' },
-  custom:  { label: 'Custom',       icon: CheckSquare, color: 'text-purple-400' },
+  packing: { label:'Packing List', icon:Package,    emoji:'📦', accent: (T) => T.skyTeal  },
+  todo:    { label:'To-Do',        icon:ListTodo,   emoji:'✅', accent: (T) => T.sage     },
+  custom:  { label:'Custom',       icon:CheckSquare,emoji:'📋', accent: (T) => T.deepTeal },
 }
+const TYPES = Object.entries(TYPE_CONFIG).map(([value, cfg]) => ({ value, ...cfg }))
 
-export default function ChecklistPanel({ tripId, role, members = [] }) {
-  const qc = useQueryClient()
-  const [newListTitle, setNewListTitle] = useState('')
-  const [newListType, setNewListType] = useState('packing')
-  const [newItems, setNewItems] = useState({}) // { checklistId: '' }
-
-  const { data: checklists = [] } = useQuery({
-    queryKey: ['checklists', tripId],
-    queryFn: () => api.get(`/trips/${tripId}/checklists`).then(r => r.data.data)
+const fetchChecklists = (tripId) =>
+  api.get(`/trips/${tripId}/checklists`).then(r => {
+    const d = r.data
+    return Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : []
   })
 
+export default function ChecklistPanel({ tripId, role, members = [] }) {
+  const { T } = useTheme()
+  const qc = useQueryClient()
+  const [newTitle,  setNewTitle]  = useState('')
+  const [newType,   setNewType]   = useState('packing')
+  const [newItems,  setNewItems]  = useState({})   // { checklistId: inputValue }
+  const [collapsed, setCollapsed] = useState({})   // { checklistId: bool }
+
+  const { data: _raw, isLoading } = useQuery({
+    queryKey: ['checklists', tripId],
+    queryFn:  () => fetchChecklists(tripId),
+  })
+  const checklists = Array.isArray(_raw) ? _raw : []
+
   const { mutate: createList, isPending: creating } = useMutation({
-    mutationFn: (data) => api.post(`/trips/${tripId}/checklists`, data),
-    onSuccess: () => { qc.invalidateQueries(['checklists', tripId]); setNewListTitle('') }
+    mutationFn: d => api.post(`/trips/${tripId}/checklists`, d),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey:['checklists', tripId] }); setNewTitle('') },
+    onError:    () => toast.error('Failed to create checklist'),
+  })
+
+  const { mutate: deleteList } = useMutation({
+    mutationFn: id => api.delete(`/checklists/${id}`),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey:['checklists', tripId] }); toast.success('Checklist deleted') },
+    onError:    () => toast.error('Failed to delete'),
   })
 
   const { mutate: addItem } = useMutation({
     mutationFn: ({ checklistId, text }) => api.post(`/checklists/${checklistId}/items`, { text }),
-    onSuccess: (_, vars) => { qc.invalidateQueries(['checklists', tripId]); setNewItems(p => ({...p, [vars.checklistId]: ''})) }
+    onSuccess:  (_, vars) => { qc.invalidateQueries({ queryKey:['checklists', tripId] }); setNewItems(p => ({ ...p, [vars.checklistId]:'' })) },
+    onError:    () => toast.error('Failed to add item'),
   })
 
   const { mutate: toggleItem } = useMutation({
     mutationFn: ({ checklistId, itemId, isChecked }) =>
       api.patch(`/checklists/${checklistId}/items/${itemId}`, { isChecked }),
     onMutate: async ({ checklistId, itemId, isChecked }) => {
-      // Optimistic update
-      await qc.cancelQueries(['checklists', tripId])
-      qc.setQueryData(['checklists', tripId], (old) =>
+      await qc.cancelQueries({ queryKey:['checklists', tripId] })
+      qc.setQueryData(['checklists', tripId], old =>
         old?.map(cl => cl._id === checklistId
-          ? {...cl, items: cl.items.map(it => it._id === itemId ? {...it, isChecked} : it)}
+          ? { ...cl, items: cl.items.map(it => it._id === itemId ? { ...it, isChecked } : it) }
           : cl
         )
       )
     },
-    onError: () => qc.invalidateQueries(['checklists', tripId])
+    onError: () => qc.invalidateQueries({ queryKey:['checklists', tripId] }),
   })
 
   const { mutate: deleteItem } = useMutation({
     mutationFn: ({ checklistId, itemId }) => api.delete(`/checklists/${checklistId}/items/${itemId}`),
-    onSuccess: () => qc.invalidateQueries(['checklists', tripId])
+    onSuccess:  () => qc.invalidateQueries({ queryKey:['checklists', tripId] }),
+    onError:    () => toast.error('Failed to delete item'),
   })
 
-  return (
-    <div className="max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-bold text-white">Checklists</h2>
-      </div>
+  const handleCreate = () => {
+    if (!newTitle.trim()) return toast.error('Give your checklist a name')
+    createList({ title: newTitle.trim(), type: newType })
+  }
 
-      {/* Create new list */}
+  const handleAddItem = (checklistId) => {
+    const text = newItems[checklistId]?.trim()
+    if (!text) return
+    addItem({ checklistId, text })
+  }
+
+  const IS = { width:'100%', padding:'9px 13px', borderRadius:9, border:`1.5px solid ${T.border}`, background:T.inputBg, color:T.text, fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', transition:'border-color .15s' }
+  const focus = e => e.target.style.borderColor = T.deepTeal
+  const blur  = e => e.target.style.borderColor = T.border
+
+  return (
+    <div style={{ maxWidth:860, fontFamily:"'DM Sans',sans-serif" }}>
+
+      {/* ── Create new checklist ── */}
       {role !== 'viewer' && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">New Checklist</h3>
-          <div className="flex gap-3">
-            <input placeholder="e.g. Packing for Paris"
-              className="flex-1 px-3.5 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm
-                placeholder-gray-500 focus:outline-none focus:border-yellow-500"
-              value={newListTitle}
-              onChange={e => setNewListTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && newListTitle && createList({ title: newListTitle, type: newListType })} />
-            <select className="px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white text-sm focus:outline-none"
-              value={newListType} onChange={e => setNewListType(e.target.value)}>
-              <option value="packing">📦 Packing</option>
-              <option value="todo">✅ To-Do</option>
-              <option value="custom">📋 Custom</option>
-            </select>
-            <button onClick={() => newListTitle && createList({ title: newListTitle, type: newListType })}
-              disabled={!newListTitle || creating}
-              className="px-4 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl text-sm disabled:opacity-40">
-              {creating ? '...' : 'Create'}
+        <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:14, padding:'16px 18px', marginBottom:20, boxShadow:`0 2px 10px ${T.shadow}` }}>
+          <p style={{ fontSize:11, fontWeight:700, letterSpacing:2, textTransform:'uppercase', color:T.textMuted, marginBottom:12 }}>New Checklist</p>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <input
+              placeholder="e.g. Packing for Jaipur…"
+              style={{ ...IS, flex:'1 1 180px', minWidth:0 }}
+              value={newTitle} onChange={e => setNewTitle(e.target.value)}
+              onFocus={focus} onBlur={blur}
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            />
+
+            {/* Type pills */}
+            <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+              {TYPES.map(t => {
+                const active = newType === t.value
+                const accent = t.accent(T)
+                return (
+                  <button key={t.value} type="button" onClick={() => setNewType(t.value)}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'8px 12px', borderRadius:9, cursor:'pointer', fontSize:12, fontWeight:600, transition:'all .15s', fontFamily:"'DM Sans',sans-serif",
+                      border:     `1.5px solid ${active ? accent : T.border}`,
+                      background: active ? `${accent}14` : 'none',
+                      color:      active ? accent : T.textMuted,
+                    }}>
+                    <span>{t.emoji}</span>
+                    <span style={{ display:'inline' }}>{t.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            <button onClick={handleCreate} disabled={!newTitle.trim() || creating}
+              style={{ padding:'8px 18px', borderRadius:9, border:'none', background:`linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color:'#fff', fontSize:13, fontWeight:700, cursor:(!newTitle.trim()||creating)?'not-allowed':'pointer', opacity:(!newTitle.trim()||creating)?.5:1, fontFamily:"'DM Sans',sans-serif", boxShadow:`0 4px 14px ${T.deepTeal}30`, transition:'opacity .15s', flexShrink:0, display:'flex', alignItems:'center', gap:6 }}>
+              {creating ? <Loader2 size={13} style={{ animation:'spin 1s linear infinite' }}/> : <Plus size={13}/>}
+              {creating ? 'Creating…' : 'Create'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Checklists */}
-      {checklists.length === 0 && (
-        <div className="text-center py-16 text-gray-500">
-          <CheckSquare size={32} className="mx-auto mb-3 opacity-30" />
-          <p>No checklists yet. Create a packing list or to-do above.</p>
+      {/* ── Loading ── */}
+      {isLoading && (
+        <div style={{ display:'flex', justifyContent:'center', padding:'60px 0' }}>
+          <Loader2 size={22} color={T.deepTeal} style={{ animation:'spin 1s linear infinite' }}/>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {checklists.map(cl => {
-          const cfg = TYPE_CONFIG[cl.type] || TYPE_CONFIG.custom
-          const Icon = cfg.icon
-          const checked = cl.items.filter(i => i.isChecked).length
-          const total = cl.items.length
+      {/* ── Empty ── */}
+      {!isLoading && checklists.length === 0 && (
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'60px 0', textAlign:'center' }}>
+          <div style={{ width:52, height:52, borderRadius:14, background:`${T.deepTeal}0e`, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, marginBottom:12 }}>✅</div>
+          <p style={{ fontSize:14, color:T.textMuted }}>No checklists yet.</p>
+          {role !== 'viewer' && <p style={{ fontSize:12, color:T.textMuted, marginTop:4 }}>Create a packing list or to-do above.</p>}
+        </div>
+      )}
 
-          return (
-            <div key={cl._id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-              {/* List header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-                <div className="flex items-center gap-2">
-                  <Icon size={14} className={cfg.color} />
-                  <span className="text-sm font-bold text-white">{cl.title}</span>
-                </div>
-                <span className="text-xs font-mono text-gray-400">{checked}/{total}</span>
-              </div>
+      {/* ── Grid ── */}
+      {!isLoading && checklists.length > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
+          {checklists.map(cl => {
+            const cfg    = TYPE_CONFIG[cl.type] || TYPE_CONFIG.custom
+            const Icon   = cfg.icon
+            const accent = cfg.accent(T)
+            const checked = cl.items?.filter(i => i.isChecked).length || 0
+            const total   = cl.items?.length || 0
+            const pct     = total > 0 ? (checked / total) * 100 : 0
+            const done    = total > 0 && checked === total
+            const isOpen  = !collapsed[cl._id]
 
-              {/* Progress */}
-              {total > 0 && (
-                <div className="h-1 bg-gray-800">
-                  <div className="h-full bg-green-500 transition-all"
-                    style={{ width: `${(checked/total)*100}%` }} />
-                </div>
-              )}
+            return (
+              <div key={cl._id} style={{ background:T.bgCard, border:`1px solid ${done ? accent+'40' : T.border}`, borderRadius:14, overflow:'hidden', transition:'border-color .2s', boxShadow:`0 2px 12px ${T.shadow}` }}>
 
-              {/* Items */}
-              <div className="p-3 space-y-1 max-h-60 overflow-y-auto">
-                {cl.items.map(item => (
-                  <div key={item._id} className="flex items-center gap-2.5 group">
-                    <button
-                      onClick={() => role !== 'viewer' && toggleItem({ checklistId: cl._id, itemId: item._id, isChecked: !item.isChecked })}
-                      className={`w-4 h-4 rounded flex-shrink-0 border flex items-center justify-center transition
-                        ${item.isChecked ? 'bg-green-500 border-green-500' : 'border-gray-600 hover:border-gray-400'}`}>
-                      {item.isChecked && <span className="text-white text-xs leading-none">✓</span>}
-                    </button>
-                    <span className={`flex-1 text-sm transition ${item.isChecked ? 'line-through text-gray-500' : 'text-gray-200'}`}>
-                      {item.text}
-                    </span>
-                    {role !== 'viewer' && (
-                      <button onClick={() => deleteItem({ checklistId: cl._id, itemId: item._id })}
-                        className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition">
-                        <Trash2 size={12} />
+                {/* ── Card header ── */}
+                <div style={{ padding:'12px 14px 10px', borderBottom:`1px solid ${T.border}` }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                      <div style={{ width:28, height:28, borderRadius:8, background:`${accent}14`, border:`1px solid ${accent}28`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                        <Icon size={13} color={accent}/>
+                      </div>
+                      <div style={{ minWidth:0 }}>
+                        <p style={{ fontSize:13, fontWeight:700, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cl.title}</p>
+                        <p style={{ fontSize:10, color:T.textMuted }}>{cfg.label}</p>
+                      </div>
+                    </div>
+
+                    <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                      {/* Progress count */}
+                      <span style={{ fontSize:11, fontWeight:700, color: done ? accent : T.textMuted, background:`${done ? accent : T.textMuted}12`, padding:'2px 8px', borderRadius:20, fontFamily:"'DM Sans',sans-serif" }}>
+                        {checked}/{total}
+                      </span>
+                      {/* Collapse toggle */}
+                      <button onClick={() => setCollapsed(p => ({ ...p, [cl._id]: !p[cl._id] }))}
+                        style={{ width:24, height:24, borderRadius:6, border:`1px solid ${T.border}`, background:'none', color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:12, transition:'transform .2s', transform: isOpen ? 'none' : 'rotate(-90deg)' }}>
+                        ▾
                       </button>
-                    )}
+                      {/* Delete list */}
+                      {role !== 'viewer' && (
+                        <button onClick={() => { if (confirm(`Delete "${cl.title}"?`)) deleteList(cl._id) }}
+                          style={{ width:24, height:24, borderRadius:6, border:`1px solid ${T.border}`, background:'none', color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all .15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.color='#dc2626'; e.currentTarget.style.borderColor='rgba(220,38,38,.3)'; e.currentTarget.style.background='rgba(220,38,38,.07)' }}
+                          onMouseLeave={e => { e.currentTarget.style.color=T.textMuted; e.currentTarget.style.borderColor=T.border; e.currentTarget.style.background='none' }}>
+                          <Trash2 size={11}/>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                ))}
-                {cl.items.length === 0 && (
-                  <p className="text-xs text-gray-600 py-2 text-center">No items yet</p>
+
+                  {/* Progress bar */}
+                  <div style={{ height:4, borderRadius:99, background:T.bgAlt, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${pct}%`, borderRadius:99, background: done ? accent : `linear-gradient(90deg,${T.deepTeal},${accent})`, transition:'width .35s ease' }}/>
+                  </div>
+                </div>
+
+                {/* ── Items ── */}
+                {isOpen && (
+                  <>
+                    <div style={{ padding:'8px 10px', maxHeight:240, overflowY:'auto' }}>
+                      {cl.items?.length === 0 && (
+                        <p style={{ fontSize:11, color:T.textMuted, textAlign:'center', padding:'12px 0' }}>No items yet</p>
+                      )}
+                      {cl.items?.map(item => (
+                        <CheckItem
+                          key={item._id}
+                          item={item}
+                          role={role}
+                          accent={accent}
+                          T={T}
+                          onToggle={() => role !== 'viewer' && toggleItem({ checklistId:cl._id, itemId:item._id, isChecked:!item.isChecked })}
+                          onDelete={() => deleteItem({ checklistId:cl._id, itemId:item._id })}
+                        />
+                      ))}
+                    </div>
+
+                    {/* ── Add item ── */}
+                    {role !== 'viewer' && (
+                      <div style={{ padding:'8px 10px 10px', borderTop:`1px solid ${T.border}` }}>
+                        <div style={{ display:'flex', gap:6 }}>
+                          <input
+                            placeholder="Add item…"
+                            style={{ flex:1, padding:'7px 11px', borderRadius:8, border:`1.5px solid ${T.border}`, background:T.inputBg, color:T.text, fontSize:12, outline:'none', fontFamily:"'DM Sans',sans-serif", transition:'border-color .15s' }}
+                            value={newItems[cl._id] || ''}
+                            onChange={e => setNewItems(p => ({ ...p, [cl._id]: e.target.value }))}
+                            onFocus={e => e.target.style.borderColor=accent}
+                            onBlur={e => e.target.style.borderColor=T.border}
+                            onKeyDown={e => e.key === 'Enter' && handleAddItem(cl._id)}
+                          />
+                          <button onClick={() => handleAddItem(cl._id)}
+                            style={{ width:32, height:32, borderRadius:8, border:`1px solid ${accent}35`, background:`${accent}12`, color:accent, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, transition:'all .15s' }}
+                            onMouseEnter={e => { e.currentTarget.style.background=`${accent}22`; e.currentTarget.style.borderColor=`${accent}60` }}
+                            onMouseLeave={e => { e.currentTarget.style.background=`${accent}12`; e.currentTarget.style.borderColor=`${accent}35` }}>
+                            <Plus size={13}/>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
+            )
+          })}
+        </div>
+      )}
 
-              {/* Add item */}
-              {role !== 'viewer' && (
-                <div className="px-3 pb-3">
-                  <div className="flex gap-2">
-                    <input placeholder="Add item..." className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700
-                      rounded-lg text-white text-xs placeholder-gray-600 focus:outline-none focus:border-yellow-500"
-                      value={newItems[cl._id] || ''}
-                      onChange={e => setNewItems(p => ({...p, [cl._id]: e.target.value}))}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && newItems[cl._id]?.trim()) {
-                          addItem({ checklistId: cl._id, text: newItems[cl._id].trim() })
-                        }
-                      }} />
-                    <button onClick={() => newItems[cl._id]?.trim() && addItem({ checklistId: cl._id, text: newItems[cl._id].trim() })}
-                      className="p-1.5 text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition">
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <style>{`@keyframes spin { to { transform:rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+
+/* ── Single checklist item ── */
+function CheckItem({ item, role, accent, T, onToggle, onDelete }) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 4px', borderRadius:8, transition:'background .12s', background: hovered ? T.bgAlt : 'none' }}>
+
+      {/* Checkbox */}
+      <button onClick={onToggle}
+        style={{ width:18, height:18, borderRadius:5, flexShrink:0, border:`1.5px solid ${item.isChecked ? accent : T.border}`, background: item.isChecked ? accent : 'none', display:'flex', alignItems:'center', justifyContent:'center', cursor: role !== 'viewer' ? 'pointer' : 'default', transition:'all .15s' }}>
+        {item.isChecked && <Check size={10} color="#fff" strokeWidth={3}/>}
+      </button>
+
+      {/* Text */}
+      <span style={{ flex:1, fontSize:13, color: item.isChecked ? T.textMuted : T.text, textDecoration: item.isChecked ? 'line-through' : 'none', transition:'color .15s', fontFamily:"'DM Sans',sans-serif", lineHeight:1.4 }}>
+        {item.text}
+      </span>
+
+      {/* Delete */}
+      {role !== 'viewer' && (
+        <button onClick={onDelete}
+          style={{ width:22, height:22, borderRadius:6, border:'none', background:'none', color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', opacity: hovered ? 1 : 0, transition:'all .15s', flexShrink:0 }}
+          onMouseEnter={e => e.currentTarget.style.color='#dc2626'}
+          onMouseLeave={e => e.currentTarget.style.color=T.textMuted}>
+          <Trash2 size={11}/>
+        </button>
+      )}
     </div>
   )
 }

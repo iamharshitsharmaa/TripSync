@@ -9,13 +9,27 @@ import {
   Wallet, TrendingUp, Clock, CheckSquare,
   Edit3, Archive, ArchiveRestore, ImagePlus, ChevronRight,
 } from 'lucide-react'
+import { useTheme } from '../context/ThemeContext'
+
+/* ── Status config using brand palette ───────────────────── */
+const STATUS_CFG = (T) => ({
+  ongoing:  { label:'Ongoing',  color: T.sage,     bg:`${T.sage}18`,     border:`${T.sage}40`     },
+  upcoming: { label:'Upcoming', color: T.skyTeal,  bg:`${T.skyTeal}18`,  border:`${T.skyTeal}45`  },
+  past:     { label:'Past',     color: T.textMuted, bg:`${T.textMuted}14`, border:`${T.textMuted}30`},
+  archived: { label:'Archived', color: T.textMid,  bg:`${T.textMid}14`,  border:`${T.textMid}30`  },
+})
+
+/* ── Cover gradients — teal/sage-tinted ─────────────────── */
+const GRADIENTS = [
+  'linear-gradient(135deg,#1C6B72,#3E5A5C)',
+  'linear-gradient(135deg,#3E5A5C,#4a6a50)',
+  'linear-gradient(135deg,#2a6060,#1C6B72)',
+  'linear-gradient(135deg,#4a5a3a,#3E5A5C)',
+  'linear-gradient(135deg,#1a5060,#2a6858)',
+]
 
 const fetchTrips = () => api.get('/trips').then(r => r.data.data)
-
-function daysUntil(date) {
-  return Math.ceil((new Date(date) - new Date()) / 86400000)
-}
-
+function daysUntil(d) { return Math.ceil((new Date(d) - new Date()) / 86400000) }
 function tripStatus(trip) {
   if (trip.status === 'archived') return 'archived'
   const now = new Date(), s = new Date(trip.startDate), e = new Date(trip.endDate)
@@ -24,49 +38,21 @@ function tripStatus(trip) {
   return 'past'
 }
 
-const STATUS_CFG = {
-  ongoing:  { label: 'Ongoing',  color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)'  },
-  upcoming: { label: 'Upcoming', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  border: 'rgba(96,165,250,0.3)'  },
-  past:     { label: 'Past',     color: '#6b7280', bg: 'rgba(107,114,128,0.1)',  border: 'rgba(107,114,128,0.2)' },
-  archived: { label: 'Archived', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)',  border: 'rgba(167,139,250,0.2)' },
-}
-
-const GRADIENTS = [
-  'linear-gradient(135deg,#1e3a5f,#2d1b4e)',
-  'linear-gradient(135deg,#1a4a2e,#0f2a4a)',
-  'linear-gradient(135deg,#4a1a2e,#1a1a4a)',
-  'linear-gradient(135deg,#3a2a0a,#1a3a2e)',
-  'linear-gradient(135deg,#2a0a3a,#0a2a3a)',
-]
-
-const inputStyle = {
-  width: '100%', padding: '10px 14px',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 10, color: '#f0f0f5', fontSize: 13,
-  outline: 'none', fontFamily: "'DM Sans', sans-serif",
-  boxSizing: 'border-box',
-}
-
-const labelStyle = {
-  fontSize: 11, fontWeight: 600, color: '#606080',
-  textTransform: 'uppercase', letterSpacing: 1,
-  display: 'block', marginBottom: 6,
-}
-
-/* ── Trip Card ── */
-function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
+/* ══════════════════════════════════════════════════════════
+   TRIP CARD
+══════════════════════════════════════════════════════════ */
+function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload, T }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuPos,  setMenuPos]  = useState({ top: 0, right: 0 })
+  const [menuPos,  setMenuPos]  = useState({ top:0, right:0 })
   const fileRef = useRef(null)
   const btnRef  = useRef(null)
 
   const status = tripStatus(trip)
-  const cfg    = STATUS_CFG[status]
+  const scfg   = STATUS_CFG(T)[status]
   const days   = daysUntil(trip.startDate)
-  const start  = new Date(trip.startDate).toLocaleDateString('en', { month: 'short', day: 'numeric' })
-  const end    = new Date(trip.endDate).toLocaleDateString('en',   { month: 'short', day: 'numeric', year: 'numeric' })
-  const grad   = GRADIENTS[parseInt(trip._id?.slice(-2), 16) % GRADIENTS.length]
+  const start  = new Date(trip.startDate).toLocaleDateString('en', { month:'short', day:'numeric' })
+  const end    = new Date(trip.endDate).toLocaleDateString('en',   { month:'short', day:'numeric', year:'numeric' })
+  const grad   = GRADIENTS[parseInt(trip._id?.slice(-2),16) % GRADIENTS.length]
 
   const openMenu = (e) => {
     e.preventDefault(); e.stopPropagation()
@@ -76,33 +62,30 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
   }
 
   const menuItems = [
-    { icon: Edit3,     label: 'Edit trip',    color: '#c0c0d8', fn: () => { onEdit(trip);             setMenuOpen(false) } },
-    { icon: ImagePlus, label: 'Upload cover', color: '#60a5fa', fn: () => { fileRef.current?.click(); setMenuOpen(false) } },
+    { icon: Edit3,     label:'Edit trip',    color: T.textMid,  fn: () => { onEdit(trip);             setMenuOpen(false) } },
+    { icon: ImagePlus, label:'Upload cover', color: T.skyTeal,  fn: () => { fileRef.current?.click(); setMenuOpen(false) } },
     status === 'archived'
-      ? { icon: ArchiveRestore, label: 'Unarchive',   color: '#34d399', fn: () => { onArchive(trip._id, false); setMenuOpen(false) } }
-      : { icon: Archive,        label: 'Archive',      color: '#f59e0b', fn: () => { onArchive(trip._id, true);  setMenuOpen(false) } },
-    { icon: Trash2,    label: 'Delete trip',  color: '#f87171', fn: () => { onDelete(trip);           setMenuOpen(false) } },
+      ? { icon: ArchiveRestore, label:'Unarchive', color: T.sage,    fn: () => { onArchive(trip._id, false); setMenuOpen(false) } }
+      : { icon: Archive,        label:'Archive',   color: '#d97706', fn: () => { onArchive(trip._id, true);  setMenuOpen(false) } },
+    { icon: Trash2, label:'Delete trip', color:'#dc2626', fn: () => { onDelete(trip); setMenuOpen(false) } },
   ]
 
   return (
-    <div
-      style={{ background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, transition: 'border-color .2s, box-shadow .2s' }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none' }}
-    >
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
-        onChange={e => { const f = e.target.files?.[0]; if (f) onImageUpload(trip._id, f); e.target.value = '' }} />
+    <div className="trip-card"
+      style={{ background: T.bgCard, border:`1px solid ${T.borderCard}`, borderRadius:16, overflow:'hidden', transition:'all .22s', cursor:'pointer' }}>
+      <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }}
+        onChange={e => { const f=e.target.files?.[0]; if(f) onImageUpload(trip._id,f); e.target.value='' }} />
 
+      {/* Context menu */}
       {menuOpen && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setMenuOpen(false)} />
-          <div style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, background: '#14142a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 6, minWidth: 175, boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}>
+          <div style={{ position:'fixed', inset:0, zIndex:9998 }} onClick={() => setMenuOpen(false)} />
+          <div style={{ position:'fixed', top:menuPos.top, right:menuPos.right, zIndex:9999, background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:12, padding:5, minWidth:168, boxShadow:`0 16px 44px ${T.shadow}` }}>
             {menuItems.map(item => (
               <button key={item.label} onClick={e => { e.stopPropagation(); item.fn() }}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', borderRadius: 8, border: 'none', background: 'none', color: item.color, fontSize: 13, fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: "'DM Sans', sans-serif" }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-              >
+                style={{ width:'100%', display:'flex', alignItems:'center', gap:9, padding:'9px 11px', borderRadius:8, border:'none', background:'none', color:item.color, fontSize:13, fontWeight:500, cursor:'pointer', textAlign:'left', fontFamily:"'DM Sans',sans-serif", transition:'background .12s' }}
+                onMouseEnter={e => e.currentTarget.style.background=T.bgAlt}
+                onMouseLeave={e => e.currentTarget.style.background='none'}>
                 <item.icon size={13} /> {item.label}
               </button>
             ))}
@@ -110,87 +93,116 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload }) {
         </>
       )}
 
-      {/* Cover */}
-      <div style={{ height: 130, background: trip.coverImage ? undefined : grad, position: 'relative', overflow: 'hidden', borderRadius: '18px 18px 0 0' }}>
-        {trip.coverImage && <img src={trip.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.65 }} />}
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,#0d0d1a 0%,transparent 55%)' }} />
-        <span style={{ position: 'absolute', top: 12, left: 14, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 100, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
-        <button ref={btnRef} onClick={openMenu} style={{ position: 'absolute', top: 10, right: 12, width: 30, height: 30, borderRadius: 8, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-          <MoreVertical size={14} />
+      {/* Cover image / gradient */}
+      <div style={{ height:140, background: trip.coverImage ? undefined : grad, position:'relative', overflow:'hidden' }}>
+        {trip.coverImage && <img src={trip.coverImage} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+        {/* Scrim */}
+        <div style={{ position:'absolute', inset:0, background:'linear-gradient(to top, rgba(22,34,36,.55) 0%, transparent 55%)' }} />
+
+        {/* Status badge */}
+        <span style={{ position:'absolute', top:12, left:13, fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:100, background:scfg.bg, color:scfg.color, border:`1px solid ${scfg.border}`, letterSpacing:.4, fontFamily:"'DM Sans',sans-serif" }}>
+          {scfg.label}
+        </span>
+
+        {/* Menu button */}
+        <button ref={btnRef} onClick={openMenu}
+          style={{ position:'absolute', top:10, right:11, width:30, height:30, borderRadius:8, background:'rgba(22,34,36,0.55)', border:'1px solid rgba(255,255,255,0.2)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', backdropFilter:'blur(4px)' }}>
+          <MoreVertical size={13} />
         </button>
+
+        {/* No-cover prompt */}
         {!trip.coverImage && (
-          <button onClick={() => fileRef.current?.click()}
-            style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 8, background: 'rgba(0,0,0,0.45)', border: '1px dashed rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'DM Sans', sans-serif" }}>
-            <ImagePlus size={11} /> Add cover
+          <button onClick={e => { e.preventDefault(); fileRef.current?.click() }}
+            style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:5, padding:'4px 11px', borderRadius:7, background:'rgba(22,34,36,0.45)', border:'1px dashed rgba(255,255,255,0.25)', color:'rgba(255,255,255,0.55)', fontSize:11, cursor:'pointer', whiteSpace:'nowrap', fontFamily:"'DM Sans',sans-serif", backdropFilter:'blur(4px)' }}>
+            <ImagePlus size={10} /> Add cover
           </button>
         )}
-        {status === 'upcoming' && days > 0 && days <= 60 && (
-          <span style={{ position: 'absolute', bottom: 12, right: 12, fontSize: 10, color: '#60a5fa', background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.25)', padding: '2px 8px', borderRadius: 6 }}>{days}d away</span>
+
+        {/* Countdown */}
+        {status==='upcoming' && days>0 && days<=60 && (
+          <span style={{ position:'absolute', bottom:10, right:11, fontSize:10, color:'#fff', background:`${T.skyTeal}cc`, padding:'2px 8px', borderRadius:6, fontWeight:600 }}>{days}d away</span>
         )}
-        {status === 'ongoing' && (
-          <span style={{ position: 'absolute', bottom: 12, right: 12, fontSize: 10, color: '#34d399', background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.25)', padding: '2px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} /> In progress
+        {status==='ongoing' && (
+          <span style={{ position:'absolute', bottom:10, right:11, fontSize:10, color:'#fff', background:`${T.sage}cc`, padding:'2px 8px', borderRadius:6, fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>
+            <span style={{ width:5, height:5, borderRadius:'50%', background:'#fff', display:'inline-block' }} /> Live
           </span>
         )}
       </div>
 
-      <Link to={`/trips/${trip._id}`} style={{ display: 'block', padding: '16px 18px 18px', textDecoration: 'none', color: 'inherit' }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, color: '#f0f0f5', marginBottom: 4, letterSpacing: '-0.3px', fontFamily: "'Playfair Display', serif", lineHeight: 1.2 }}>{trip.title}</h3>
+      {/* Card body */}
+      <Link to={`/trips/${trip._id}`} style={{ display:'block', padding:'15px 16px 17px', textDecoration:'none', color:'inherit' }}>
+        <h3 style={{ fontSize:15, fontWeight:700, fontFamily:"'Cormorant Garamond',serif", color:T.text, marginBottom:3, lineHeight:1.2, letterSpacing:'-.2px' }}>{trip.title}</h3>
         {trip.description && (
-          <p style={{ fontSize: 12, color: '#505070', marginBottom: 12, lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{trip.description}</p>
+          <p style={{ fontSize:12, color:T.textMuted, marginBottom:11, lineHeight:1.5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{trip.description}</p>
         )}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 12, color: '#606080', marginBottom: 14 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={11} color="#60a5fa" />{start} – {end}</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={11} color="#a855f7" />{trip.days?.length || 0} days</span>
-          {trip.budgetLimit > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Wallet size={11} color="#f59e0b" />{trip.currency} {trip.budgetLimit.toLocaleString()}</span>}
+
+        <div style={{ display:'flex', flexWrap:'wrap', gap:9, fontSize:12, color:T.textMuted, marginBottom:13 }}>
+          <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+            <Calendar size={11} color={T.skyTeal} />{start} – {end}
+          </span>
+          <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+            <MapPin size={11} color={T.sage} />{trip.days?.length||0} day{trip.days?.length!==1?'s':''}
+          </span>
+          {trip.budgetLimit>0 && (
+            <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+              <Wallet size={11} color={T.deepTeal} />{trip.currency} {trip.budgetLimit.toLocaleString()}
+            </span>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex' }}>
-              {trip.members?.slice(0, 5).map((m, i) => (
-                <div key={i} title={m.user?.name} style={{ width: 26, height: 26, borderRadius: '50%', marginLeft: i > 0 ? -8 : 0, background: `hsl(${[220,270,200,340,160][i%5]},55%,48%)`, border: '2px solid #0d0d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                  {m.user?.name?.[0]?.toUpperCase() || '?'}
+
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+            <div style={{ display:'flex' }}>
+              {trip.members?.slice(0,5).map((m,i) => (
+                <div key={i} title={m.user?.name} style={{ width:24, height:24, borderRadius:'50%', marginLeft:i>0?-7:0, background:[`${T.deepTeal}cc`,`${T.sage}cc`,`${T.skyTeal}cc`,`${T.deepTeal}99`,`${T.sage}99`][i%5], border:`2px solid ${T.bgCard}`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color:'#fff', flexShrink:0 }}>
+                  {m.user?.name?.[0]?.toUpperCase()||'?'}
                 </div>
               ))}
             </div>
-            <span style={{ fontSize: 11, color: '#505070' }}>{trip.members?.length} member{trip.members?.length !== 1 ? 's' : ''}</span>
+            <span style={{ fontSize:11, color:T.textMuted }}>{trip.members?.length} member{trip.members?.length!==1?'s':''}</span>
           </div>
-          <ChevronRight size={14} color="#303050" />
+          <ChevronRight size={14} color={T.textMuted} />
         </div>
       </Link>
     </div>
   )
 }
 
-/* ── Stats Bar ── */
-function StatsBar({ trips }) {
+/* ══════════════════════════════════════════════════════════
+   STATS BAR
+══════════════════════════════════════════════════════════ */
+function StatsBar({ trips, T }) {
   const items = [
-    { icon: Globe2,      label: 'Total',    value: trips.filter(t => tripStatus(t) !== 'archived').length, color: '#60a5fa' },
-    { icon: TrendingUp,  label: 'Ongoing',  value: trips.filter(t => tripStatus(t) === 'ongoing').length,   color: '#34d399' },
-    { icon: Clock,       label: 'Upcoming', value: trips.filter(t => tripStatus(t) === 'upcoming').length,  color: '#a855f7' },
-    { icon: CheckSquare, label: 'Days',     value: trips.reduce((s, t) => s + (t.days?.length || 0), 0),   color: '#f59e0b' },
+    { icon: Globe2,     label:'Trips',    value: trips.filter(t=>tripStatus(t)!=='archived').length, accent: T.deepTeal },
+    { icon: TrendingUp, label:'Ongoing',  value: trips.filter(t=>tripStatus(t)==='ongoing').length,   accent: T.sage     },
+    { icon: Clock,      label:'Upcoming', value: trips.filter(t=>tripStatus(t)==='upcoming').length,  accent: T.skyTeal  },
+    { icon: CheckSquare,label:'Days',     value: trips.reduce((s,t)=>s+(t.days?.length||0),0),        accent: T.deepTeal },
   ]
   return (
-    <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
+    <div className="stats-grid" style={{ display:'grid', gap:10, marginBottom:24 }}>
       {items.map(s => (
-        <div key={s.label} style={{ background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <s.icon size={12} color={s.color} />
-            <span style={{ fontSize: 10, color: '#505070', fontWeight: 500 }}>{s.label}</span>
+        <div key={s.label} style={{ background:T.bgCard, border:`1px solid ${T.borderCard}`, borderRadius:14, padding:'14px 16px', boxShadow:`0 2px 10px ${T.shadow}` }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+            <div style={{ width:26, height:26, borderRadius:7, background:`${s.accent}16`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <s.icon size={12} color={s.accent} />
+            </div>
+            <span style={{ fontSize:11, color:T.textMuted, fontWeight:500 }}>{s.label}</span>
           </div>
-          <p style={{ fontSize: 26, fontWeight: 900, color: '#f0f0f5', fontFamily: "'Playfair Display', serif", lineHeight: 1 }}>{s.value}</p>
+          <p style={{ fontSize:26, fontWeight:700, fontFamily:"'Cormorant Garamond',serif", color:T.text, lineHeight:1 }}>{s.value}</p>
         </div>
       ))}
     </div>
   )
 }
 
-/* ── Trip Modal ── */
-function TripModal({ existing, onClose }) {
+/* ══════════════════════════════════════════════════════════
+   TRIP MODAL
+══════════════════════════════════════════════════════════ */
+function TripModal({ existing, onClose, T }) {
   const qc     = useQueryClient()
   const isEdit = !!existing
   const coverRef = useRef(null)
-  const [coverPreview, setCoverPreview] = useState(existing?.coverImage || null)
+  const [coverPreview, setCoverPreview] = useState(existing?.coverImage||null)
   const [coverFile,    setCoverFile]    = useState(null)
   const [form, setForm] = useState({
     title:       existing?.title       || '',
@@ -202,87 +214,112 @@ function TripModal({ existing, onClose }) {
   })
   const set = field => e => setForm(p => ({ ...p, [field]: e.target.value }))
 
+  const IS = { width:'100%', padding:'10px 13px', borderRadius:9, border:`1.5px solid ${T.border}`, background:T.inputBg, color:T.text, fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', transition:'border-color .15s' }
+  const LS = { fontSize:11, fontWeight:700, color:T.textMuted, textTransform:'uppercase', letterSpacing:1.1, display:'block', marginBottom:6 }
+
   const { mutate: uploadCover } = useMutation({
-    mutationFn: ({ id, file }) => {
-      const fd = new FormData(); fd.append('file', file)
-      return api.post(`/upload/trip/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-    },
+    mutationFn: ({ id, file }) => { const fd=new FormData(); fd.append('file',file); return api.post(`/upload/trip/${id}`,fd,{headers:{'Content-Type':'multipart/form-data'}}) },
   })
 
   const { mutate: saveTrip, isPending } = useMutation({
-    mutationFn: d => isEdit
-      ? api.patch(`/trips/${existing._id}`, d).then(r => r.data.data)
-      : api.post('/trips', d).then(r => r.data.data),
+    mutationFn: d => isEdit ? api.patch(`/trips/${existing._id}`,d).then(r=>r.data.data) : api.post('/trips',d).then(r=>r.data.data),
     onSuccess: (trip) => {
       if (coverFile) {
-        uploadCover({ id: trip._id, file: coverFile }, {
-          onSettled: () => { qc.invalidateQueries({ queryKey: ['trips'] }); toast.success(isEdit ? 'Trip updated!' : 'Trip created!'); onClose() },
-        })
+        uploadCover({ id:trip._id, file:coverFile }, { onSettled: () => { qc.invalidateQueries({queryKey:['trips']}); toast.success(isEdit?'Trip updated!':'Trip created!'); onClose() } })
       } else {
-        qc.invalidateQueries({ queryKey: ['trips'] }); toast.success(isEdit ? 'Trip updated!' : 'Trip created!'); onClose()
+        qc.invalidateQueries({queryKey:['trips']}); toast.success(isEdit?'Trip updated!':'Trip created!'); onClose()
       }
     },
-    onError: e => toast.error(e.response?.data?.message || 'Failed'),
+    onError: e => toast.error(e.response?.data?.message||'Failed'),
   })
 
   const submit = e => {
     e.preventDefault()
-    if (new Date(form.startDate) > new Date(form.endDate)) return toast.error('Start date must be before end date')
-    saveTrip({ ...form, startDate: new Date(form.startDate).toISOString(), endDate: new Date(form.endDate).toISOString(), budgetLimit: Number(form.budgetLimit) || 0 })
+    if (new Date(form.startDate)>new Date(form.endDate)) return toast.error('Start date must be before end date')
+    saveTrip({ ...form, startDate:new Date(form.startDate).toISOString(), endDate:new Date(form.endDate).toISOString(), budgetLimit:Number(form.budgetLimit)||0 })
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16, overflowY: 'auto' }} onClick={onClose}>
-      <div style={{ background: '#0f0f1c', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 500, padding: '24px 20px', boxShadow: '0 24px 64px rgba(0,0,0,0.7)', margin: 'auto' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 900, fontFamily: "'Playfair Display', serif", color: '#f0f0f5' }}>{isEdit ? 'Edit Trip' : 'New Trip'}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#606080', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+    <div style={{ position:'fixed', inset:0, background:'rgba(22,34,36,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:16, overflowY:'auto', backdropFilter:'blur(4px)' }} onClick={onClose}>
+      <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:20, width:'100%', maxWidth:500, padding:'24px 22px', boxShadow:`0 28px 64px ${T.shadow}`, margin:'auto' }} onClick={e=>e.stopPropagation()}>
+
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:22 }}>
+          <div>
+            <h2 style={{ fontSize:22, fontWeight:700, fontFamily:"'Cormorant Garamond',serif", color:T.text, lineHeight:1 }}>{isEdit?'Edit Trip':'New Trip'}</h2>
+            <p style={{ fontSize:12, color:T.textMuted, marginTop:4 }}>{isEdit?'Update trip details':'Fill in the details to get started'}</p>
+          </div>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:8, border:`1px solid ${T.border}`, background:T.bgAlt, color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:18, lineHeight:1 }}>×</button>
         </div>
+
         <form onSubmit={submit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:15 }}>
+            {/* Cover */}
             <div>
-              <label style={labelStyle}>Cover Photo</label>
-              <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { setCoverFile(f); setCoverPreview(URL.createObjectURL(f)) } }} />
-              <div onClick={() => coverRef.current?.click()} style={{ height: 110, borderRadius: 12, cursor: 'pointer', overflow: 'hidden', border: coverPreview ? '1px solid rgba(255,255,255,0.1)' : '2px dashed rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+              <label style={LS}>Cover Photo</label>
+              <input ref={coverRef} type="file" accept="image/*" style={{ display:'none' }}
+                onChange={e => { const f=e.target.files?.[0]; if(f){setCoverFile(f);setCoverPreview(URL.createObjectURL(f))} }} />
+              <div onClick={() => coverRef.current?.click()} style={{ height:100, borderRadius:11, cursor:'pointer', overflow:'hidden', border:coverPreview?`1px solid ${T.border}`:`2px dashed ${T.border}`, background:T.bgAlt, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', transition:'border-color .15s' }}>
                 {coverPreview
-                  ? <img src={coverPreview} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.75 }} />
-                  : <div style={{ textAlign: 'center', pointerEvents: 'none' }}><div style={{ fontSize: 22, marginBottom: 4 }}>🖼️</div><p style={{ fontSize: 12, color: '#505070', margin: 0 }}>Click to upload cover</p></div>
+                  ? <img src={coverPreview} alt="cover" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                  : <div style={{ textAlign:'center', pointerEvents:'none' }}>
+                      <div style={{ width:36, height:36, borderRadius:10, background:`${T.deepTeal}14`, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 8px' }}><ImagePlus size={15} color={T.deepTeal} /></div>
+                      <p style={{ fontSize:12, color:T.textMuted, margin:0 }}>Click to upload cover</p>
+                    </div>
                 }
               </div>
             </div>
+
             <div>
-              <label style={labelStyle}>Trip Name *</label>
-              <input type="text" placeholder="e.g. Jaipur Heritage Trail" required style={inputStyle} onFocus={e => e.target.style.borderColor='#4f8ef7'} onBlur={e => e.target.style.borderColor='rgba(255,255,255,0.1)'} value={form.title} onChange={set('title')} />
+              <label style={LS}>Trip Name *</label>
+              <input type="text" placeholder="e.g. Jaipur Heritage Trail" required style={IS}
+                onFocus={e=>e.target.style.borderColor=T.deepTeal} onBlur={e=>e.target.style.borderColor=T.border}
+                value={form.title} onChange={set('title')} />
             </div>
+
             <div>
-              <label style={labelStyle}>Description</label>
-              <input type="text" placeholder="Optional tagline" style={inputStyle} onFocus={e => e.target.style.borderColor='#4f8ef7'} onBlur={e => e.target.style.borderColor='rgba(255,255,255,0.1)'} value={form.description} onChange={set('description')} />
+              <label style={LS}>Description</label>
+              <input type="text" placeholder="Optional tagline" style={IS}
+                onFocus={e=>e.target.style.borderColor=T.deepTeal} onBlur={e=>e.target.style.borderColor=T.border}
+                value={form.description} onChange={set('description')} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[['Start Date *','startDate'],['End Date *','endDate']].map(([lbl,field]) => (
                 <div key={field}>
-                  <label style={labelStyle}>{lbl}</label>
-                  <input type="date" required style={inputStyle} onFocus={e => e.target.style.borderColor='#4f8ef7'} onBlur={e => e.target.style.borderColor='rgba(255,255,255,0.1)'} value={form[field]} onChange={set(field)} />
+                  <label style={LS}>{lbl}</label>
+                  <input type="date" required style={IS}
+                    onFocus={e=>e.target.style.borderColor=T.deepTeal} onBlur={e=>e.target.style.borderColor=T.border}
+                    value={form[field]} onChange={set(field)} />
                 </div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               <div>
-                <label style={labelStyle}>Currency</label>
-                <select style={{ ...inputStyle, cursor: 'pointer' }} onFocus={e => e.target.style.borderColor='#4f8ef7'} onBlur={e => e.target.style.borderColor='rgba(255,255,255,0.1)'} value={form.currency} onChange={set('currency')}>
-                  {[['USD','$ USD'],['EUR','EUR'],['GBP','GBP'],['INR','INR'],['JPY','JPY'],['AUD','AUD']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                <label style={LS}>Currency</label>
+                <select style={{ ...IS, cursor:'pointer' }}
+                  onFocus={e=>e.target.style.borderColor=T.deepTeal} onBlur={e=>e.target.style.borderColor=T.border}
+                  value={form.currency} onChange={set('currency')}>
+                  {[['USD','$ USD'],['EUR','€ EUR'],['GBP','£ GBP'],['INR','₹ INR'],['JPY','¥ JPY'],['AUD','A$ AUD']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Budget</label>
-                <input type="number" placeholder="0" min="0" style={inputStyle} onFocus={e => e.target.style.borderColor='#4f8ef7'} onBlur={e => e.target.style.borderColor='rgba(255,255,255,0.1)'} value={form.budgetLimit} onChange={set('budgetLimit')} />
+                <label style={LS}>Budget Limit</label>
+                <input type="number" placeholder="0" min="0" style={IS}
+                  onFocus={e=>e.target.style.borderColor=T.deepTeal} onBlur={e=>e.target.style.borderColor=T.border}
+                  value={form.budgetLimit} onChange={set('budgetLimit')} />
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-            <button type="button" onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'none', color: '#808098', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-            <button type="submit" disabled={isPending} style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#4f8ef7,#7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1, fontFamily: "'DM Sans', sans-serif" }}>
-              {isPending ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Save Changes' : 'Create Trip')}
+
+          <div style={{ display:'flex', gap:10, marginTop:22 }}>
+            <button type="button" onClick={onClose} style={{ flex:1, padding:11, borderRadius:10, border:`1.5px solid ${T.border}`, background:'none', color:T.textMuted, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all .15s' }}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=T.deepTeal}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+              Cancel
+            </button>
+            <button type="submit" disabled={isPending} style={{ flex:2, padding:11, borderRadius:10, border:'none', background:`linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color:'#fff', fontSize:13, fontWeight:700, cursor:isPending?'not-allowed':'pointer', opacity:isPending?.75:1, fontFamily:"'DM Sans',sans-serif", boxShadow:`0 4px 16px ${T.deepTeal}35`, transition:'opacity .15s' }}>
+              {isPending?(isEdit?'Saving…':'Creating…'):(isEdit?'Save Changes':'Create Trip')}
             </button>
           </div>
         </form>
@@ -291,40 +328,51 @@ function TripModal({ existing, onClose }) {
   )
 }
 
-/* ── Join Modal ── */
-function JoinModal({ onClose }) {
+/* ══════════════════════════════════════════════════════════
+   JOIN MODAL
+══════════════════════════════════════════════════════════ */
+function JoinModal({ onClose, T }) {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const { mutate, isPending } = useMutation({
-    mutationFn: c => api.post('/join', { code: c }).then(r => r.data),
-    onSuccess: d => { toast.success(d.data.alreadyMember ? 'Already a member!' : 'Joined!'); onClose(); navigate(`/trips/${d.data.tripId}`) },
-    onError: e => toast.error(e.response?.data?.message || 'Invalid code'),
+    mutationFn: c => api.post('/join', { code:c }).then(r=>r.data),
+    onSuccess: d => { toast.success(d.data.alreadyMember?'Already a member!':'Joined!'); onClose(); navigate(`/trips/${d.data.tripId}`) },
+    onError: e => toast.error(e.response?.data?.message||'Invalid code'),
   })
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#0f0f1c', border: '1px solid rgba(168,85,247,0.25)', borderRadius: 20, width: '100%', maxWidth: 380, padding: '24px 20px', boxShadow: '0 24px 64px rgba(0,0,0,0.7)' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 900, fontFamily: "'Playfair Display', serif", color: '#f0f0f5', display: 'flex', alignItems: 'center', gap: 8 }}><Hash size={18} color="#a855f7" /> Join a Trip</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#606080', fontSize: 22, cursor: 'pointer' }}>×</button>
+    <div style={{ position:'fixed', inset:0, background:'rgba(22,34,36,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:16, backdropFilter:'blur(4px)' }} onClick={onClose}>
+      <div style={{ background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:20, width:'100%', maxWidth:380, padding:'26px 22px', boxShadow:`0 24px 56px ${T.shadow}` }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:10, background:`${T.skyTeal}16`, border:`1px solid ${T.skyTeal}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <Hash size={16} color={T.skyTeal} />
+            </div>
+            <h2 style={{ fontSize:20, fontWeight:700, fontFamily:"'Cormorant Garamond',serif", color:T.text }}>Join a Trip</h2>
+          </div>
+          <button onClick={onClose} style={{ width:30, height:30, borderRadius:8, border:`1px solid ${T.border}`, background:T.bgAlt, color:T.textMuted, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17 }}>×</button>
         </div>
-        <p style={{ fontSize: 13, color: '#606080', marginBottom: 20, lineHeight: 1.6 }}>Enter the 6-character invite code.</p>
+        <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>Enter the 6-character invite code shared by your trip organiser.</p>
+
         <input placeholder="XXXXXX" maxLength={6} autoFocus
-          style={{ width: '100%', padding: 16, borderRadius: 12, border: '1px solid rgba(168,85,247,0.35)', background: 'rgba(168,85,247,0.07)', color: '#f0f0f5', fontSize: 28, fontWeight: 900, textAlign: 'center', letterSpacing: '0.45em', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }}
-          value={code} onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''))}
-          onKeyDown={e => e.key === 'Enter' && code.length === 6 && mutate(code)}
-        />
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', margin: '12px 0 18px' }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${code[i] ? '#a855f7' : 'rgba(255,255,255,0.08)'}`, background: code[i] ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: code[i] ? '#fff' : '#303050' }}>
-              {code[i] || '.'}
+          style={{ width:'100%', padding:16, borderRadius:12, border:`1.5px solid ${T.border}`, background:T.inputBg, color:T.text, fontSize:28, fontWeight:700, textAlign:'center', letterSpacing:'0.45em', outline:'none', fontFamily:'monospace', boxSizing:'border-box', transition:'border-color .15s' }}
+          value={code} onChange={e=>setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''))}
+          onFocus={e=>e.target.style.borderColor=T.skyTeal} onBlur={e=>e.target.style.borderColor=T.border}
+          onKeyDown={e=>e.key==='Enter'&&code.length===6&&mutate(code)} />
+
+        {/* Char indicators */}
+        <div style={{ display:'flex', gap:5, justifyContent:'center', margin:'12px 0 20px' }}>
+          {Array.from({length:6}).map((_,i) => (
+            <div key={i} style={{ width:32, height:32, borderRadius:8, border:`1.5px solid ${code[i]?T.skyTeal:T.border}`, background:code[i]?`${T.skyTeal}14`:T.bgAlt, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800, color:code[i]?T.deepTeal:T.textMuted, transition:'all .15s' }}>
+              {code[i]||'·'}
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'none', color: '#808098', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-          <button onClick={() => code.length === 6 && mutate(code)} disabled={isPending || code.length !== 6}
-            style={{ flex: 2, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#7c3aed,#a855f7)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: code.length === 6 ? 'pointer' : 'not-allowed', opacity: code.length !== 6 ? 0.5 : 1, fontFamily: "'DM Sans', sans-serif" }}>
-            {isPending ? 'Joining...' : 'Join Trip'}
+
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={onClose} style={{ flex:1, padding:11, borderRadius:10, border:`1.5px solid ${T.border}`, background:'none', color:T.textMuted, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+          <button onClick={() => code.length===6&&mutate(code)} disabled={isPending||code.length!==6}
+            style={{ flex:2, padding:11, borderRadius:10, border:'none', background:`linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color:'#fff', fontSize:13, fontWeight:700, cursor:code.length===6?'pointer':'not-allowed', opacity:code.length!==6?.45:1, fontFamily:"'DM Sans',sans-serif", boxShadow:`0 4px 16px ${T.deepTeal}35`, transition:'opacity .15s' }}>
+            {isPending?'Joining…':'Join Trip'}
           </button>
         </div>
       </div>
@@ -332,24 +380,32 @@ function JoinModal({ onClose }) {
   )
 }
 
-/* ── Delete Modal ── */
-function DeleteModal({ trip, onConfirm, onClose }) {
+/* ══════════════════════════════════════════════════════════
+   DELETE MODAL
+══════════════════════════════════════════════════════════ */
+function DeleteModal({ trip, onConfirm, onClose, T }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#0f0f1c', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 20, maxWidth: 380, width: '100%', padding: '24px 20px', boxShadow: '0 24px 64px rgba(0,0,0,0.8)' }} onClick={e => e.stopPropagation()}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}><Trash2 size={20} color="#f87171" /></div>
-        <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 10, fontFamily: "'Playfair Display', serif", color: '#f0f0f5' }}>Delete Trip?</h3>
-        <p style={{ fontSize: 13, color: '#808098', lineHeight: 1.7, marginBottom: 22 }}>Permanently delete <strong style={{ color: '#f0f0f5' }}>"{trip?.title}"</strong> along with all activities, expenses, and checklists. This cannot be undone.</p>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'none', color: '#808098', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.12)', color: '#f87171', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Delete Forever</button>
+    <div style={{ position:'fixed', inset:0, background:'rgba(22,34,36,0.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:300, padding:16, backdropFilter:'blur(4px)' }} onClick={onClose}>
+      <div style={{ background:T.bgCard, border:`1px solid rgba(220,38,38,0.2)`, borderRadius:20, maxWidth:380, width:'100%', padding:'26px 22px', boxShadow:`0 28px 64px ${T.shadow}` }} onClick={e=>e.stopPropagation()}>
+        <div style={{ width:44, height:44, borderRadius:12, background:'rgba(220,38,38,0.08)', border:'1px solid rgba(220,38,38,0.2)', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
+          <Trash2 size={20} color="#dc2626" />
+        </div>
+        <h3 style={{ fontSize:20, fontWeight:700, marginBottom:10, fontFamily:"'Cormorant Garamond',serif", color:T.text }}>Delete Trip?</h3>
+        <p style={{ fontSize:13, color:T.textMuted, lineHeight:1.7, marginBottom:24 }}>
+          Permanently delete <strong style={{ color:T.text }}>"{trip?.title}"</strong> along with all activities, expenses, and checklists. This cannot be undone.
+        </p>
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={onClose} style={{ flex:1, padding:11, borderRadius:10, border:`1.5px solid ${T.border}`, background:'none', color:T.textMuted, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>
+          <button onClick={onConfirm} style={{ flex:1, padding:11, borderRadius:10, border:'1px solid rgba(220,38,38,0.25)', background:'rgba(220,38,38,0.07)', color:'#dc2626', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>Delete Forever</button>
         </div>
       </div>
     </div>
   )
 }
 
-/* ── Main Dashboard ── */
+/* ══════════════════════════════════════════════════════════
+   MAIN DASHBOARD
+══════════════════════════════════════════════════════════ */
 export default function Dashboard() {
   const qc = useQueryClient()
   const [showCreate,   setShowCreate]   = useState(false)
@@ -359,157 +415,205 @@ export default function Dashboard() {
   const [search,       setSearch]       = useState('')
   const [filter,       setFilter]       = useState('all')
 
-  const { data: trips = [], isLoading } = useQuery({ queryKey: ['trips'], queryFn: fetchTrips })
+  const { T } = useTheme()
+
+  const { data: trips=[], isLoading } = useQuery({ queryKey:['trips'], queryFn:fetchTrips })
 
   const { mutate: deleteTrip } = useMutation({
     mutationFn: id => api.delete(`/trips/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['trips'] }); toast.success('Trip deleted'); setDeleteTarget(null) },
+    onSuccess: () => { qc.invalidateQueries({queryKey:['trips']}); toast.success('Trip deleted'); setDeleteTarget(null) },
     onError:   () => toast.error('Failed to delete trip'),
   })
 
   const { mutate: archiveTrip } = useMutation({
     mutationFn: ({ id, archive }) => api.patch(`/trips/${id}`, { status: archive ? 'archived' : null }),
-    onSuccess: (_, { archive }) => {
-      qc.invalidateQueries({ queryKey: ['trips'] })
-      toast.success(archive ? 'Trip archived' : 'Trip unarchived')
-    },
+    onSuccess: (_,{ archive }) => { qc.invalidateQueries({queryKey:['trips']}); toast.success(archive?'Trip archived':'Trip unarchived') },
     onError: () => toast.error('Failed to update trip'),
   })
 
   const { mutate: uploadCover } = useMutation({
-    mutationFn: ({ id, file }) => { const fd = new FormData(); fd.append('file', file); return api.post(`/upload/trip/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }) },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['trips'] }); toast.success('Cover updated!') },
+    mutationFn: ({ id, file }) => { const fd=new FormData(); fd.append('file',file); return api.post(`/upload/trip/${id}`,fd,{headers:{'Content-Type':'multipart/form-data'}}) },
+    onSuccess: () => { qc.invalidateQueries({queryKey:['trips']}); toast.success('Cover updated!') },
     onError:   () => toast.error('Upload failed'),
   })
 
   const filtered = trips.filter(t => {
-    const matchSearch = t.title.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filter === 'all' || tripStatus(t) === filter
-    return matchSearch && matchFilter
+    const ms = t.title.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase())
+    const mf = filter==='all' || tripStatus(t)===filter
+    return ms && mf
   })
 
+  const FILTERS = [
+    { key:'all',      label:'All',      count: trips.length },
+    { key:'ongoing',  label:'Ongoing',  count: trips.filter(t=>tripStatus(t)==='ongoing').length  },
+    { key:'upcoming', label:'Upcoming', count: trips.filter(t=>tripStatus(t)==='upcoming').length },
+    { key:'past',     label:'Past',     count: trips.filter(t=>tripStatus(t)==='past').length     },
+    { key:'archived', label:'Archived', count: trips.filter(t=>tripStatus(t)==='archived').length },
+  ]
+
   return (
-    <div style={{ padding: '24px 20px', fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: '#07070f' }}>
+    <div style={{ minHeight:'100vh', background:T.bg, fontFamily:"'DM Sans',sans-serif", transition:'background .3s, color .3s', color:T.text }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
-        input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.5) }
-        option { background: #1a1a2e }
-        @keyframes spin { to { transform: rotate(360deg) } }
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=DM+Sans:wght@400;500;600;700&display=swap');
+        *, *::before, *::after { box-sizing:border-box; margin:0; padding:0 }
+        @keyframes spin { to { transform:rotate(360deg) } }
 
-        /* Stats: 4 cols desktop → 2 cols mobile */
-        .stats-grid { grid-template-columns: repeat(4,1fr) !important }
-        @media (max-width: 600px) {
-          .stats-grid { grid-template-columns: repeat(2,1fr) !important }
+        /* ── Stats ── */
+        .stats-grid { grid-template-columns:repeat(4,1fr) }
+        @media(max-width:640px){ .stats-grid { grid-template-columns:repeat(2,1fr) } }
+
+        /* ── Trip grid ── */
+        .trip-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:16px }
+        @media(max-width:500px){ .trip-grid { grid-template-columns:1fr } }
+
+        /* ── Filter pills ── */
+        .filter-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch }
+        .filter-bar::-webkit-scrollbar { display:none }
+
+        /* ── Card hover ── */
+        .trip-card:hover { transform:translateY(-3px); box-shadow:0 10px 32px ${T.shadow} !important; border-color:${T.deepTeal}40 !important }
+
+        /* ── Dash header responsive ── */
+        @media(max-width:500px){
+          .dash-head  { flex-direction:column; align-items:flex-start !important }
+          .dash-acts  { width:100% }
+          .dash-acts button { flex:1; justify-content:center }
         }
 
-        /* Trip grid: auto on desktop → 1 col on small mobile */
-        .trip-grid  { display: grid; grid-template-columns: repeat(auto-fill,minmax(285px,1fr)); gap: 16px }
-        @media (max-width: 480px) {
-          .trip-grid { grid-template-columns: 1fr !important }
-        }
+        /* ── Date picker ── */
+        input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.4) }
+        select option { background:${T.bgCard}; color:${T.text} }
 
-        /* Filter pills: horizontal scroll on mobile */
-        .filter-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch }
-        .filter-bar::-webkit-scrollbar { display: none }
-        .filter-pill { flex-shrink: 0 }
-
-        /* Dashboard header buttons stack on small screens */
-        @media (max-width: 480px) {
-          .dash-header { flex-direction: column; align-items: flex-start !important }
-          .dash-actions { width: 100% }
-          .dash-actions button { flex: 1; justify-content: center }
-        }
+        /* ── Search focus ── */
+        .dash-search:focus { border-color:${T.deepTeal} !important; box-shadow:0 0 0 3px ${T.deepTeal}18 !important }
+        .dash-search::placeholder { color:${T.textMuted} }
       `}</style>
 
-      {/* Modals */}
-      {(showCreate || editTrip) && <TripModal existing={editTrip} onClose={() => { setShowCreate(false); setEditTrip(null) }} />}
-      {showJoin     && <JoinModal   onClose={() => setShowJoin(false)} />}
-      {deleteTarget && <DeleteModal trip={deleteTarget} onConfirm={() => deleteTrip(deleteTarget._id)} onClose={() => setDeleteTarget(null)} />}
+      {/* ── Modals ── */}
+      {(showCreate||editTrip) && <TripModal existing={editTrip} T={T} onClose={() => { setShowCreate(false); setEditTrip(null) }} />}
+      {showJoin     && <JoinModal   T={T} onClose={() => setShowJoin(false)} />}
+      {deleteTarget && <DeleteModal T={T} trip={deleteTarget} onConfirm={() => deleteTrip(deleteTarget._id)} onClose={() => setDeleteTarget(null)} />}
 
-      {/* Header */}
-      <div className="dash-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, fontFamily: "'Playfair Display', serif", letterSpacing: '-0.5px', marginBottom: 4, color: '#f0f0f5' }}>My Trips</h1>
-          <p style={{ fontSize: 13, color: '#505070' }}>{trips.length} trip{trips.length !== 1 ? 's' : ''} · {trips.filter(t => tripStatus(t) === 'upcoming').length} upcoming</p>
-        </div>
-        <div className="dash-actions" style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowJoin(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#c0c0d8', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-            <Hash size={14} /> Join
-          </button>
-          <button onClick={() => setShowCreate(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#4f8ef7,#7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", boxShadow: '0 4px 20px rgba(79,142,247,0.3)' }}>
-            <Plus size={14} /> New Trip
-          </button>
-        </div>
-      </div>
+      {/* ── Top bar ─────────────────────────────────────────── */}
+      {/* Removed — AppLayout sidebar owns the logo & global nav */}
 
-      {/* Stats */}
-      {!isLoading && trips.length > 0 && <StatsBar trips={trips} />}
+      {/* ── Page content ──────────────────────────────────── */}
+      <div style={{ maxWidth:1200, margin:'0 auto', padding:'28px 24px' }}>
 
-      {/* Search + Filters */}
-      {trips.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#505070', pointerEvents: 'none' }} />
-            <input placeholder="Search trips..."
-              style={{ width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0f0f5', fontSize: 13, outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' }}
-              value={search} onChange={e => setSearch(e.target.value)}
-            />
+        {/* Page heading */}
+        <div className="dash-head" style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:24, gap:14, flexWrap:'wrap' }}>
+          <div>
+            <p style={{ fontSize:12, letterSpacing:2.5, textTransform:'uppercase', fontWeight:600, color:T.textMuted, marginBottom:6 }}>Dashboard</p>
+            <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'clamp(26px,4vw,36px)', fontWeight:700, color:T.text, lineHeight:1.05, letterSpacing:'-.5px' }}>
+              My Trips
+            </h1>
+            {!isLoading && trips.length > 0 && (
+              <p style={{ fontSize:13, color:T.textMuted, marginTop:5 }}>
+                {trips.filter(t=>tripStatus(t)!=='archived').length} active · {trips.filter(t=>tripStatus(t)==='upcoming').length} upcoming
+              </p>
+            )}
           </div>
-          <div className="filter-bar">
-            {['all','ongoing','upcoming','past','archived'].map(f => (
-              <button key={f} className="filter-pill" onClick={() => setFilter(f)}
-                style={{ padding: '7px 14px', borderRadius: 10, border: '1px solid', borderColor: filter === f ? '#4f8ef7' : 'rgba(255,255,255,0.08)', background: filter === f ? 'rgba(79,142,247,0.12)' : 'rgba(255,255,255,0.03)', color: filter === f ? '#60a5fa' : '#606080', fontSize: 12, fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
-                {f}
+          {/* Actions live here — no duplicate logo bar */}
+          <div className="dash-acts" style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <button onClick={() => setShowJoin(true)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:`1.5px solid ${T.border}`, background:'none', color:T.textMid, fontSize:13, fontWeight:600, cursor:'pointer', transition:'all .15s', fontFamily:"'DM Sans',sans-serif" }}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=T.deepTeal}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+              <Hash size={13}/> Join
+            </button>
+            <button onClick={() => setShowCreate(true)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:9, border:'none', background:`linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:`0 4px 14px ${T.deepTeal}35`, transition:'opacity .15s', fontFamily:"'DM Sans',sans-serif" }}
+              onMouseEnter={e=>e.currentTarget.style.opacity='.88'}
+              onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+              <Plus size={13}/> New Trip
+            </button>
+          </div>
+        </div>
+
+        {/* Stats bar */}
+        {!isLoading && trips.length>0 && <StatsBar trips={trips} T={T} />}
+
+        {/* Search + Filter */}
+        {trips.length>0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:22 }}>
+            {/* Search */}
+            <div style={{ position:'relative' }}>
+              <Search size={13} style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:T.textMuted, pointerEvents:'none' }} />
+              <input className="dash-search" placeholder="Search trips…"
+                style={{ width:'100%', padding:'10px 13px 10px 36px', borderRadius:10, background:T.bgCard, border:`1.5px solid ${T.border}`, color:T.text, fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box', transition:'border-color .2s, box-shadow .2s' }}
+                value={search} onChange={e=>setSearch(e.target.value)} />
+            </div>
+
+            {/* Filter pills */}
+            <div className="filter-bar">
+              {FILTERS.map(f => {
+                const active = filter===f.key
+                return (
+                  <button key={f.key} onClick={()=>setFilter(f.key)}
+                    style={{ flexShrink:0, display:'flex', alignItems:'center', gap:5, padding:'6px 13px', borderRadius:9, border:`1.5px solid ${active?T.deepTeal:T.border}`, background:active?`${T.deepTeal}12`:'none', color:active?T.deepTeal:T.textMuted, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all .15s', whiteSpace:'nowrap' }}>
+                    {f.label}
+                    {f.count>0 && <span style={{ background:active?`${T.deepTeal}20`:T.bgAlt, color:active?T.deepTeal:T.textMuted, padding:'1px 6px', borderRadius:20, fontSize:10, fontWeight:700 }}>{f.count}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Loading */}
+        {isLoading && (
+          <div style={{ display:'flex', justifyContent:'center', padding:'80px 0' }}>
+            <Loader2 size={26} color={T.deepTeal} style={{ animation:'spin 1s linear infinite' }} />
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && trips.length===0 && (
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'80px 0', textAlign:'center' }}>
+            <div style={{ width:72, height:72, borderRadius:20, background:`${T.deepTeal}12`, border:`1px solid ${T.deepTeal}25`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:30, marginBottom:20 }}>🗺️</div>
+            <h3 style={{ fontSize:22, fontWeight:700, fontFamily:"'Cormorant Garamond',serif", marginBottom:8, color:T.text }}>No trips yet</h3>
+            <p style={{ fontSize:13, color:T.textMuted, maxWidth:280, lineHeight:1.7, marginBottom:26 }}>Create your first trip or join one with an invite code from a friend.</p>
+            <div style={{ display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center' }}>
+              <button onClick={()=>setShowJoin(true)}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 20px', borderRadius:10, border:`1.5px solid ${T.border}`, background:'none', color:T.textMid, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", transition:'all .15s' }}>
+                <Hash size={14}/> Join with Code
               </button>
+              <button onClick={()=>setShowCreate(true)}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 20px', borderRadius:10, border:'none', background:`linear-gradient(135deg,${T.deepTeal},${T.skyTeal})`, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif", boxShadow:`0 4px 16px ${T.deepTeal}35` }}>
+                <Plus size={14}/> Create Trip
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* No search results */}
+        {!isLoading && trips.length>0 && filtered.length===0 && (
+          <div style={{ textAlign:'center', padding:'56px 0' }}>
+            <div style={{ width:52, height:52, borderRadius:14, background:T.bgAlt, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px' }}>
+              <Search size={20} color={T.textMuted} />
+            </div>
+            <p style={{ fontSize:14, color:T.textMuted, marginBottom:14 }}>No trips match your filters</p>
+            <button onClick={()=>{setSearch('');setFilter('all')}}
+              style={{ padding:'7px 16px', borderRadius:8, border:`1px solid ${T.border}`, background:T.bgCard, color:T.textMid, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+              Clear filters
+            </button>
+          </div>
+        )}
+
+        {/* Trip grid */}
+        {!isLoading && filtered.length>0 && (
+          <div className="trip-grid">
+            {filtered.map(trip => (
+              <TripCard key={trip._id} trip={trip} T={T}
+                onDelete={t          => setDeleteTarget(t)}
+                onArchive={(id,arch) => archiveTrip({id,archive:arch})}
+                onEdit={t            => setEditTrip(t)}
+                onImageUpload={(id,file) => uploadCover({id,file})}
+              />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Loading */}
-      {isLoading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
-          <Loader2 size={28} color="#4f8ef7" style={{ animation: 'spin 1s linear infinite' }} />
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!isLoading && trips.length === 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0', textAlign: 'center' }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>🗺️</div>
-          <h3 style={{ fontSize: 20, fontWeight: 900, fontFamily: "'Playfair Display', serif", marginBottom: 8, color: '#f0f0f5' }}>No trips yet</h3>
-          <p style={{ fontSize: 13, color: '#606080', maxWidth: 280, lineHeight: 1.7, marginBottom: 24 }}>Create your first trip or join one with an invite code.</p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button onClick={() => setShowJoin(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'none', color: '#c0c0d8', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}><Hash size={14} /> Join with Code</button>
-            <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#4f8ef7,#7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}><Plus size={14} /> Create Trip</button>
-          </div>
-        </div>
-      )}
-
-      {/* No results */}
-      {!isLoading && trips.length > 0 && filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Search size={32} color="#303050" style={{ margin: '0 auto 12px' }} />
-          <p style={{ fontSize: 14, color: '#505070' }}>No trips match your search</p>
-          <button onClick={() => { setSearch(''); setFilter('all') }} style={{ marginTop: 12, padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'none', color: '#808098', fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Clear filters</button>
-        </div>
-      )}
-
-      {/* Trip grid */}
-      {!isLoading && filtered.length > 0 && (
-        <div className="trip-grid">
-          {filtered.map(trip => (
-            <TripCard key={trip._id} trip={trip}
-              onDelete={t   => setDeleteTarget(t)}
-              onArchive={(id, archive) => archiveTrip({ id, archive })}
-              onEdit={t     => setEditTrip(t)}
-              onImageUpload={(id, file) => uploadCover({ id, file })}
-            />
-          ))}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
