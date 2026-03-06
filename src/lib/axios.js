@@ -1,8 +1,11 @@
 import axios from 'axios'
 
-// Hardcoded for production — update this if your Railway URL changes
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'https://tripsync-backend-production.up.railway.app/api'
-// const BASE_URL = ('http://localhost:5000/api')
+// Set VITE_API_URL in Vercel dashboard → Project → Settings → Environment Variables
+// Value should be your Railway backend URL e.g. https://tripsync-xyz.up.railway.app/api
+if (!import.meta.env.VITE_API_URL) {
+  console.warn('[axios] VITE_API_URL not set — falling back to localhost. Set this in Vercel env vars.')
+}
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const api = axios.create({
   baseURL: BASE_URL,
