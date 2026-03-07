@@ -253,5 +253,5 @@ TripSync uses a dual-token JWT strategy:
 <div align="center">
   Built with ❤️ for travelers everywhere
   <br/>
-  <a href="https://tripsync.vercel.app">Live Demo</a> · <a href="https://github.com/yourusername/tripsync/issues">Report Bug</a> · <a href="https://github.com/yourusername/tripsync/issues">Request Feature</a>
+  
 </div>
