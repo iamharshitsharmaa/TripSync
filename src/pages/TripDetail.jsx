@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/axios'
 import useAuthStore from '../store/authStore'
 import { useSocket } from '../hooks/useSocket'
+import { usePresence } from '../hooks/usePresence'
 import { useTheme } from '../context/ThemeContext'
 import ItineraryBoard from '../components/itinerary/ItineraryBoard'
 import MembersPanel from '../components/trip/MembersPanel'
@@ -40,6 +41,7 @@ export default function TripDetail() {
   const { T }    = useTheme()
   const [activeTab, setActiveTab] = useState('itinerary')
   useSocket(id)
+  const onlineUsers = usePresence(id)
 
   const { data: trip, isLoading, isError } = useQuery({
     queryKey: ['trip', id],
@@ -50,7 +52,8 @@ export default function TripDetail() {
   if (isLoading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:T.bg }}>
       <Loader2 size={26} color={T.deepTeal} style={{ animation:'spin 1s linear infinite' }} />
-      <style>{`@keyframes spin { to { transform:rotate(360deg) } }`}</style>
+      <style>{`@keyframes spin     { to { transform:rotate(360deg) } }
+        @keyframes ts-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }`}</style>
     </div>
   )
 
@@ -174,20 +177,81 @@ export default function TripDetail() {
             </div>
           </div>
 
-          {/* Member avatars */}
-          <div className="trip-header-details" style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-            <div style={{ display:'flex', alignItems:'center' }}>
-              {trip.members?.slice(0, 5).map((m, i) => (
-                <div key={i} title={m.user?.name}
-                  style={{ width:32, height:32, borderRadius:'50%', marginLeft:i>0?-9:0,
-                    background:[`${T.deepTeal}cc`,`${T.sage}cc`,`${T.skyTeal}cc`,`${T.deepTeal}99`,`${T.sage}99`][i%5],
-                    border:`2.5px solid ${T.bgCard}`, display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:11, fontWeight:800, color:'#fff', flexShrink:0, zIndex:5-i }}>
-                  {m.user?.name?.[0]?.toUpperCase() || '?'}
+          {/* Member avatars + live presence */}
+          <div className="trip-header-details" style={{ display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
+
+            {/* Online presence — shown when anyone is viewing */}
+            {onlineUsers.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+                {/* Online avatars */}
+                <div style={{ display:'flex', alignItems:'center' }}>
+                  {onlineUsers.slice(0, 5).map((u, i) => {
+                    const colors = [`${T.deepTeal}dd`,`${T.sage}dd`,`${T.skyTeal}dd`,`${T.deepTeal}aa`,`${T.sage}aa`]
+                    const isMe = u.userId === user?._id
+                    return (
+                      <div key={u.userId}
+                        title={isMe ? `${u.name} (you)` : u.name}
+                        style={{ position:'relative', marginLeft:i>0?-8:0, zIndex:10-i }}>
+                        {/* Avatar circle */}
+                        <div style={{ width:30, height:30, borderRadius:'50%',
+                          background: colors[i%5],
+                          border:`2.5px solid ${T.bgCard}`,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:11, fontWeight:800, color:'#fff', overflow:'hidden',
+                          boxShadow: isMe ? `0 0 0 2px ${T.deepTeal}` : 'none',
+                          transition:'transform .15s',
+                        }}>
+                          {u.avatar
+                            ? <img src={u.avatar} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                            : u.name?.[0]?.toUpperCase() || '?'
+                          }
+                        </div>
+                        {/* Green online dot */}
+                        <div style={{ position:'absolute', bottom:0, right:0,
+                          width:9, height:9, borderRadius:'50%',
+                          background:'#22c55e',
+                          border:`2px solid ${T.bgCard}`,
+                          boxShadow:'0 0 5px rgba(34,197,94,0.6)',
+                        }}/>
+                      </div>
+                    )
+                  })}
+                  {onlineUsers.length > 5 && (
+                    <div style={{ width:30, height:30, borderRadius:'50%', marginLeft:-8,
+                      background:T.bgAlt, border:`2.5px solid ${T.bgCard}`,
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:10, fontWeight:700, color:T.textMuted }}>
+                      +{onlineUsers.length - 5}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-            <span style={{ fontSize:12, color:T.textMuted }}>{trip.members?.length} member{trip.members?.length!==1?'s':''}</span>
+                {/* "X online" label */}
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <div style={{ width:6, height:6, borderRadius:'50%', background:'#22c55e', boxShadow:'0 0 5px rgba(34,197,94,0.7)', animation:'ts-pulse 2s ease-in-out infinite' }}/>
+                  <span style={{ fontSize:10, fontWeight:600, color:'#22c55e' }}>
+                    {onlineUsers.length} online now
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Static member count when no presence data yet */}
+            {onlineUsers.length === 0 && (
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ display:'flex', alignItems:'center' }}>
+                  {trip.members?.slice(0, 5).map((m, i) => (
+                    <div key={i} title={m.user?.name}
+                      style={{ width:30, height:30, borderRadius:'50%', marginLeft:i>0?-8:0,
+                        background:[`${T.deepTeal}cc`,`${T.sage}cc`,`${T.skyTeal}cc`,`${T.deepTeal}99`,`${T.sage}99`][i%5],
+                        border:`2.5px solid ${T.bgCard}`, display:'flex', alignItems:'center', justifyContent:'center',
+                        fontSize:11, fontWeight:800, color:'#fff', flexShrink:0, zIndex:5-i }}>
+                      {m.user?.name?.[0]?.toUpperCase() || '?'}
+                    </div>
+                  ))}
+                </div>
+                <span style={{ fontSize:12, color:T.textMuted }}>{trip.members?.length} member{trip.members?.length!==1?'s':''}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -231,7 +295,7 @@ export default function TripDetail() {
         ) : (
           <div style={{ maxWidth:1280, margin:'0 auto', width:'100%' }}>
             {activeTab === 'itinerary'    && <ItineraryBoard     trip={trip}  role={role} />}
-            {activeTab === 'budget'       && <BudgetPanel tripId={id} role={role} currency={trip.currency} budgetLimit={trip.budgetLimit} members={trip.members || []} />}
+            {activeTab === 'budget'       && <BudgetPanel        tripId={id}  role={role} currency={trip.currency} budgetLimit={trip.budgetLimit} members={trip.members || []} currentUserId={user?._id} />}
             {activeTab === 'checklists'   && <ChecklistPanel     tripId={id}  role={role} members={trip.members} />}
             {activeTab === 'reservations' && <ReservationsPanel  tripId={id}  role={role} />}
             {activeTab === 'members'      && <MembersPanel       trip={trip}  role={role} currentUserId={user?._id} />}

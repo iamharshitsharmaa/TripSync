@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../lib/axios'
@@ -10,6 +11,7 @@ import {
   Edit3, Archive, ArchiveRestore, ImagePlus, ChevronRight,
 } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
+import AIPlannerChat from '../components/AIPlannerChat'
 
 /* ── Status config using brand palette ───────────────────── */
 const STATUS_CFG = (T) => ({
@@ -46,6 +48,7 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload, T }) {
   const [menuPos,  setMenuPos]  = useState({ top:0, right:0 })
   const fileRef = useRef(null)
   const btnRef  = useRef(null)
+  const menuRef = useRef(null)
 
   const status = tripStatus(trip)
   const scfg   = STATUS_CFG(T)[status]
@@ -54,11 +57,27 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload, T }) {
   const end    = new Date(trip.endDate).toLocaleDateString('en',   { month:'short', day:'numeric', year:'numeric' })
   const grad   = GRADIENTS[parseInt(trip._id?.slice(-2),16) % GRADIENTS.length]
 
+  // Close menu when clicking outside or scrolling
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => {
+      if (menuRef.current?.contains(e.target)) return
+      if (btnRef.current?.contains(e.target)) return
+      setMenuOpen(false)
+    }
+    const t = setTimeout(() => {
+      document.addEventListener('mousedown', close)
+      window.addEventListener('scroll', () => setMenuOpen(false), { once: true, passive: true })
+    }, 50)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', close) }
+  }, [menuOpen])
+
   const openMenu = (e) => {
-    e.preventDefault(); e.stopPropagation()
+    e.stopPropagation()
+    e.preventDefault()
     const r = btnRef.current.getBoundingClientRect()
-    setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
-    setMenuOpen(true)
+    setMenuPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
+    setMenuOpen(v => !v)
   }
 
   const menuItems = [
@@ -70,28 +89,29 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload, T }) {
     { icon: Trash2, label:'Delete trip', color:'#dc2626', fn: () => { onDelete(trip); setMenuOpen(false) } },
   ]
 
+  // Portal menu — renders directly on document.body, escapes all overflow/transform contexts
+  const menuPortal = menuOpen ? createPortal(
+    <div ref={menuRef} style={{ position:'fixed', top:menuPos.top, right:menuPos.right, zIndex:99999, background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:12, padding:5, minWidth:172, boxShadow:'0 8px 32px rgba(0,0,0,0.25)' }}>
+      {menuItems.map(item => (
+        <button key={item.label}
+          onMouseDown={e => { e.stopPropagation(); item.fn() }}
+          style={{ width:'100%', display:'flex', alignItems:'center', gap:9, padding:'9px 12px', borderRadius:8, border:'none', background:'none', color:item.color, fontSize:13, fontWeight:500, cursor:'pointer', textAlign:'left', fontFamily:"'DM Sans',sans-serif", transition:'background .1s' }}
+          onMouseEnter={e => e.currentTarget.style.background=T.bgAlt}
+          onMouseLeave={e => e.currentTarget.style.background='none'}>
+          <item.icon size={13}/> {item.label}
+        </button>
+      ))}
+    </div>,
+    document.body
+  ) : null
+
   return (
     <div className="trip-card"
-      style={{ background: T.bgCard, border:`1px solid ${T.borderCard}`, borderRadius:16, overflow:'hidden', transition:'all .22s', cursor:'pointer' }}>
+      style={{ background: T.bgCard, border:`1px solid ${T.borderCard}`, borderRadius:16, overflow:'hidden', transition:'transform .2s, box-shadow .2s', cursor:'pointer' }}>
       <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }}
         onChange={e => { const f=e.target.files?.[0]; if(f) onImageUpload(trip._id,f); e.target.value='' }} />
 
-      {/* Context menu */}
-      {menuOpen && (
-        <>
-          <div style={{ position:'fixed', inset:0, zIndex:9998 }} onClick={() => setMenuOpen(false)} />
-          <div style={{ position:'fixed', top:menuPos.top, right:menuPos.right, zIndex:9999, background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:12, padding:5, minWidth:168, boxShadow:`0 16px 44px ${T.shadow}` }}>
-            {menuItems.map(item => (
-              <button key={item.label} onClick={e => { e.stopPropagation(); item.fn() }}
-                style={{ width:'100%', display:'flex', alignItems:'center', gap:9, padding:'9px 11px', borderRadius:8, border:'none', background:'none', color:item.color, fontSize:13, fontWeight:500, cursor:'pointer', textAlign:'left', fontFamily:"'DM Sans',sans-serif", transition:'background .12s' }}
-                onMouseEnter={e => e.currentTarget.style.background=T.bgAlt}
-                onMouseLeave={e => e.currentTarget.style.background='none'}>
-                <item.icon size={13} /> {item.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      {menuPortal}
 
       {/* Cover image / gradient */}
       <div style={{ height:140, background: trip.coverImage ? undefined : grad, position:'relative', overflow:'hidden' }}>
@@ -106,14 +126,14 @@ function TripCard({ trip, onDelete, onArchive, onEdit, onImageUpload, T }) {
 
         {/* Menu button */}
         <button ref={btnRef} onClick={openMenu}
-          style={{ position:'absolute', top:10, right:11, width:30, height:30, borderRadius:8, background:'rgba(22,34,36,0.55)', border:'1px solid rgba(255,255,255,0.2)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', backdropFilter:'blur(4px)' }}>
+          style={{ position:'absolute', top:10, right:11, width:30, height:30, borderRadius:8, background:'rgba(22,34,36,0.65)', border:'1px solid rgba(255,255,255,0.2)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
           <MoreVertical size={13} />
         </button>
 
         {/* No-cover prompt */}
         {!trip.coverImage && (
           <button onClick={e => { e.preventDefault(); fileRef.current?.click() }}
-            style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:5, padding:'4px 11px', borderRadius:7, background:'rgba(22,34,36,0.45)', border:'1px dashed rgba(255,255,255,0.25)', color:'rgba(255,255,255,0.55)', fontSize:11, cursor:'pointer', whiteSpace:'nowrap', fontFamily:"'DM Sans',sans-serif", backdropFilter:'blur(4px)' }}>
+            style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:5, padding:'4px 11px', borderRadius:7, background:'rgba(22,34,36,0.65)', border:'1px dashed rgba(255,255,255,0.25)', color:'rgba(255,255,255,0.55)', fontSize:11, cursor:'pointer', whiteSpace:'nowrap', fontFamily:"'DM Sans',sans-serif" }}>
             <ImagePlus size={10} /> Add cover
           </button>
         )}
@@ -324,6 +344,7 @@ function TripModal({ existing, onClose, T }) {
           </div>
         </form>
       </div>
+
     </div>
   )
 }
@@ -471,7 +492,7 @@ export default function Dashboard() {
         .filter-bar::-webkit-scrollbar { display:none }
 
         /* ── Card hover ── */
-        .trip-card:hover { transform:translateY(-3px); box-shadow:0 10px 32px ${T.shadow} !important; border-color:${T.deepTeal}40 !important }
+        .trip-card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.18) !important }
 
         /* ── Dash header responsive ── */
         @media(max-width:500px){
@@ -614,6 +635,9 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* ── AI Trip Planner floating button ── */}
+      <AIPlannerChat />
     </div>
   )
 }
