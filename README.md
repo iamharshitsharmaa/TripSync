@@ -246,7 +246,7 @@ TripSync uses a dual-token JWT strategy:
 
 ## 📄 License
 
-MIT © [Your Name](https://github.com/yourusername)
+[Harshit](https://github.com/iamharshitsharmaa)
 
 ---
 
