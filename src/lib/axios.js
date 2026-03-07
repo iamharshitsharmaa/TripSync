@@ -5,7 +5,7 @@ import axios from 'axios'
 if (!import.meta.env.VITE_API_URL) {
   console.warn('[axios] VITE_API_URL not set — falling back to localhost. Set this in Vercel env vars.')
 }
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://tripsync-backend.up.railway.app/api'
+const BASE_URL = `${import.meta.env.VITE_API_URL}/api` || 'http://tripsync-backend.up.railway.app/api'
 
 const api = axios.create({
   baseURL: BASE_URL,

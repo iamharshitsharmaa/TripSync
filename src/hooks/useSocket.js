@@ -3,9 +3,9 @@ import { io } from 'socket.io-client'
 import { useQueryClient } from '@tanstack/react-query'
 import useAuthStore from '../store/authStore'
 
-const SOCKET_URL = (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000')
+const SOCKET_URL = (`${import.meta.env.VITE_API_URL}/api` || 'http://localhost:5000')
   .replace(/\/api$/, '')
-  
+
 let socket = null
 
 export function useSocket(tripId) {
