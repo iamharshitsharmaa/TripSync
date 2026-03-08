@@ -9,7 +9,7 @@
 ## 🌐 Live Demo
 
 - **Frontend:** [tripsync.vercel.app]([https://trip-sync-sigma.vercel.app])
-- **Backend API:** [tripsync-backend-production.up.railway.app](https://tripsync-backend-production.up.railway.app/api/health)
+- **Backend API:** [tripsync-backend-production.up.railway.app](https://tripsync-backend-production.up.railway.app)
 
 ---
 
